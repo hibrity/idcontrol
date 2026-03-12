@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Placas</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+    }
+    button, a.btn {
+      display: inline-block;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .row > * {
+      flex: 1;
+      min-width: 140px;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      color: black;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .warning {
+      background: #f59e0b;
+      color: black;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Leitura de placas</div>
+        <div class="muted">Busque um veículo pela placa e registre entrada ou saída.</div>
+      </div>
+
+      <div class="row" style="flex:0 0 auto;">
+        <a class="btn ghost" href="./index.html">← Voltar</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Buscar placa</h3>
+
+      <input id="plate_input" placeholder="Digite a placa (ex: ABC1D23)" />
+
+      <div class="row">
+        <button class="primary" onclick="searchPlate()">Buscar veículo</button>
+        <button class="ghost" onclick="clearResult()">Limpar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resultado</h3>
+      <div id="result_box">
+        <div class="item">Nenhuma busca realizada.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Últimos registros de placa</h3>
+      <div id="plate_logs_list"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentVehicle = null;
+
+    function normalizePlate(v) {
+      return (v || "").toUpperCase().replace(/\s+/g, "").replace(/-/g, "").trim();
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function addHistory(title, description) {
+      const user = await getUser();
+      if (!user) return;
+
+      await supabase.from("history").insert({
+        title,
+        description,
+        created_by: user.id
+      });
+    }
+
+    async function addPlateLog({ vehicleId, plate, accessType, result, notes }) {
+      const user = await getUser();
+      if (!user) return;
+
+      const { error } = await supabase.from("plate_logs").insert({
+        created_by: user.id,
+        vehicle_id: vehicleId || null,
+        plate,
+        access_type: accessType,
+        result: result || "matched",
+        notes: notes || null
+      });
+
+      if (error) {
+        console.log("plate_logs não disponível ou falhou:", error.message);
+      }
+    }
+
+    function clearResult() {
+      currentVehicle = null;
+      document.getElementById("plate_input").value = "";
+      document.getElementById("result_box").innerHTML = `<div class="item">Nenhuma busca realizada.</div>`;
+    }
+
+    async function searchPlate() {
+      const plate = normalizePlate(document.getElementById("plate_input").value);
+
+      if (!plate) {
+        alert("Digite uma placa.");
+        return;
+      }
+
+      const { data: vehicle, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("plate", plate)
+        .single();
+
+      const box = document.getElementById("result_box");
+
+      if (error || !vehicle) {
+        currentVehicle = null;
+        box.innerHTML = `
+          <div class="item">
+            <b>Placa não encontrada</b><br>
+            Placa buscada: ${plate}<br>
+            <span class="badge warning">Não localizada</span>
+          </div>
+        `;
+
+        await addHistory("Placa não encontrada", `Busca sem sucesso para a placa ${plate}.`);
+        await addPlateLog({
+          vehicleId: null,
+          plate,
+          accessType: "unknown",
+          result: "not_found",
+          notes: "Placa não localizada no cadastro"
+        });
+        await loadPlateLogs();
+        return;
+      }
+
+      currentVehicle = vehicle;
+
+      let ownerName = "—";
+      let ownerType = "—";
+
+      if (vehicle.person_id) {
+        const { data: person } = await supabase
+          .from("people")
+          .select("full_name")
+          .eq("id", vehicle.person_id)
+          .single();
+
+        ownerName = person?.full_name || "—";
+        ownerType = "Pessoa";
+      }
+
+      if (vehicle.visitor_id) {
+        const { data: visitor } = await supabase
+          .from("visitors")
+          .select("full_name")
+          .eq("id", vehicle.visitor_id)
+          .single();
+
+        ownerName = visitor?.full_name || "—";
+        ownerType = "Visitante";
+      }
+
+      box.innerHTML = `
+        <div class="item">
+          <b>${vehicle.plate}</b><br>
+          Modelo: ${vehicle.model || "-"}<br>
+          Cor: ${vehicle.color || "-"}<br>
+          Tipo: ${vehicle.kind || "-"}<br>
+          Vinculado a: ${ownerName}<br>
+          Categoria: ${ownerType}<br>
+          <span class="badge">${vehicle.active ? "Ativo" : "Inativo"}</span>
+        </div>
+
+        <div class="item">
+          <label>Tipo de acesso</label>
+          <select id="plate_access_type">
+            <option value="entry">Entrada</option>
+            <option value="exit">Saída</option>
+          </select>
+
+          <label>Local</label>
+          <input id="plate_location" placeholder="Local (ex: Portão principal)" />
+
+          <label>Observações</label>
+          <textarea id="plate_notes" placeholder="Observações"></textarea>
+
+          <button class="primary" onclick="registerPlateAccess()">Registrar acesso</button>
+        </div>
+      `;
+    }
+
+    async function registerPlateAccess() {
+      const user = await getUser();
+      if (!user || !currentVehicle) return;
+
+      const accessType = document.getElementById("plate_access_type").value;
+      const location = document.getElementById("plate_location").value.trim();
+      const notes = document.getElementById("plate_notes").value.trim();
+
+      const payload = {
+        created_by: user.id,
+        person_id: currentVehicle.person_id || null,
+        visitor_id: currentVehicle.visitor_id || null,
+        access_type: accessType,
+        method: "plate",
+        location_name: location || null,
+        notes: notes || `Acesso por placa ${currentVehicle.plate}`
+      };
+
+      const { error } = await supabase.from("access_logs").insert(payload);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await addHistory(
+        "Acesso por placa",
+        `${accessType === "entry" ? "Entrada" : "Saída"} registrada para a placa ${currentVehicle.plate}.`
+      );
+
+      await addPlateLog({
+        vehicleId: currentVehicle.id,
+        plate: currentVehicle.plate,
+        accessType,
+        result: "matched",
+        notes: notes || null
+      });
+
+      document.getElementById("result_box").innerHTML += `
+        <div class="item">
+          <b>Acesso registrado com sucesso</b><br>
+          Placa: ${currentVehicle.plate}<br>
+          Tipo: ${accessType === "entry" ? "Entrada" : "Saída"}<br>
+          <span class="badge">Registrado</span>
+        </div>
+      `;
+
+      await loadPlateLogs();
+    }
+
+    async function loadPlateLogs() {
+      const list = document.getElementById("plate_logs_list");
+      list.innerHTML = "";
+
+      const { data, error } = await supabase
+        .from("plate_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) {
+        list.innerHTML = `<div class="item">Tabela plate_logs não disponível ou erro ao carregar.</div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        list.innerHTML = `<div class="item">Nenhum registro de placa encontrado.</div>`;
+        return;
+      }
+
+      data.forEach(log => {
+        list.innerHTML += `
+          <div class="item">
+            <b>${log.plate}</b><br>
+            Tipo: ${log.access_type}<br>
+            Resultado: ${log.result || "-"}<br>
+            Observações: ${log.notes || "-"}
+          </div>
+        `;
+      });
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+      await loadPlateLogs();
+    })();
+
+    window.searchPlate = searchPlate;
+    window.clearResult = clearResult;
+    window.registerPlateAccess = registerPlateAccess;
+    window.logout = logout;
+  </script>
+</body>
+</html>
