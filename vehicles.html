@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Veículos</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+    }
+    button, a.btn {
+      display: inline-block;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .row > * {
+      flex: 1;
+      min-width: 140px;
+    }
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      color: black;
+      font-size: 12px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Veículos</div>
+        <div class="muted">Cadastro e vínculo de veículos a pessoas ou visitantes.</div>
+      </div>
+
+      <div class="row" style="flex:0 0 auto;">
+        <a class="btn ghost" href="./index.html">← Voltar</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Cadastrar veículo</h3>
+
+      <select id="vehicle_target_type" onchange="toggleVehicleTargetType()">
+        <option value="person">Pessoa</option>
+        <option value="visitor">Visitante</option>
+      </select>
+
+      <select id="vehicle_person"></select>
+      <select id="vehicle_visitor" style="display:none"></select>
+
+      <input id="vehicle_plate" placeholder="Placa (ex: ABC1D23)" />
+      <input id="vehicle_model" placeholder="Modelo" />
+      <input id="vehicle_color" placeholder="Cor" />
+
+      <select id="vehicle_kind">
+        <option value="car">Carro</option>
+        <option value="motorcycle">Moto</option>
+        <option value="van">Van</option>
+        <option value="truck">Caminhão</option>
+        <option value="other">Outro</option>
+      </select>
+
+      <button class="primary" onclick="saveVehicle()">Salvar veículo</button>
+    </div>
+
+    <div class="card">
+      <h3>Lista de veículos</h3>
+      <div id="vehicles_list"></div>
+    </div>
+  </div>
+
+  <script>
+    function normalizePlate(v) {
+      return (v || "").toUpperCase().replace(/\s+/g, "").trim();
+    }
+
+    function toggleVehicleTargetType() {
+      const type = document.getElementById("vehicle_target_type").value;
+      document.getElementById("vehicle_person").style.display = type === "person" ? "block" : "none";
+      document.getElementById("vehicle_visitor").style.display = type === "visitor" ? "block" : "none";
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function addHistory(title, description) {
+      const user = await getUser();
+      if (!user) return;
+
+      await supabase.from("history").insert({
+        title,
+        description,
+        created_by: user.id
+      });
+    }
+
+    async function loadPeopleAndVisitors() {
+      const personSelect = document.getElementById("vehicle_person");
+      const visitorSelect = document.getElementById("vehicle_visitor");
+
+      personSelect.innerHTML = "";
+      visitorSelect.innerHTML = "";
+
+      const { data: people } = await supabase
+        .from("people")
+        .select("id, full_name")
+        .order("full_name", { ascending: true });
+
+      const { data: visitors } = await supabase
+        .from("visitors")
+        .select("id, full_name")
+        .order("full_name", { ascending: true });
+
+      if (!people || people.length === 0) {
+        personSelect.innerHTML = `<option value="">Nenhuma pessoa cadastrada</option>`;
+      } else {
+        people.forEach(p => {
+          personSelect.innerHTML += `<option value="${p.id}">${p.full_name}</option>`;
+        });
+      }
+
+      if (!visitors || visitors.length === 0) {
+        visitorSelect.innerHTML = `<option value="">Nenhum visitante cadastrado</option>`;
+      } else {
+        visitors.forEach(v => {
+          visitorSelect.innerHTML += `<option value="${v.id}">${v.full_name}</option>`;
+        });
+      }
+    }
+
+    async function saveVehicle() {
+      const user = await getUser();
+      if (!user) return;
+
+      const targetType = document.getElementById("vehicle_target_type").value;
+      const personId = document.getElementById("vehicle_person").value;
+      const visitorId = document.getElementById("vehicle_visitor").value;
+      const plate = normalizePlate(document.getElementById("vehicle_plate").value);
+      const model = document.getElementById("vehicle_model").value.trim();
+      const color = document.getElementById("vehicle_color").value.trim();
+      const kind = document.getElementById("vehicle_kind").value;
+
+      if (!plate) {
+        alert("Placa obrigatória.");
+        return;
+      }
+
+      if (targetType === "person" && !personId) {
+        alert("Selecione uma pessoa.");
+        return;
+      }
+
+      if (targetType === "visitor" && !visitorId) {
+        alert("Selecione um visitante.");
+        return;
+      }
+
+      const { error } = await supabase.from("vehicles").insert({
+        created_by: user.id,
+        person_id: targetType === "person" ? personId : null,
+        visitor_id: targetType === "visitor" ? visitorId : null,
+        plate,
+        model: model || null,
+        color: color || null,
+        kind,
+        active: true
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await addHistory("Veículo cadastrado", `Veículo ${plate} cadastrado com sucesso.`);
+
+      document.getElementById("vehicle_plate").value = "";
+      document.getElementById("vehicle_model").value = "";
+      document.getElementById("vehicle_color").value = "";
+      document.getElementById("vehicle_kind").value = "car";
+
+      await loadVehicles();
+    }
+
+    async function loadVehicles() {
+      const list = document.getElementById("vehicles_list");
+      list.innerHTML = "";
+
+      const { data: vehicles, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar veículos.</div>`;
+        return;
+      }
+
+      if (!vehicles || vehicles.length === 0) {
+        list.innerHTML = `<div class="item">Nenhum veículo cadastrado.</div>`;
+        return;
+      }
+
+      const personIds = vehicles.filter(v => v.person_id).map(v => v.person_id);
+      const visitorIds = vehicles.filter(v => v.visitor_id).map(v => v.visitor_id);
+
+      let peopleMap = {};
+      let visitorsMap = {};
+
+      if (personIds.length) {
+        const { data: people } = await supabase
+          .from("people")
+          .select("id, full_name")
+          .in("id", personIds);
+
+        (people || []).forEach(p => {
+          peopleMap[p.id] = p.full_name;
+        });
+      }
+
+      if (visitorIds.length) {
+        const { data: visitors } = await supabase
+          .from("visitors")
+          .select("id, full_name")
+          .in("id", visitorIds);
+
+        (visitors || []).forEach(v => {
+          visitorsMap[v.id] = v.full_name;
+        });
+      }
+
+      vehicles.forEach(v => {
+        const owner = v.person_id ? peopleMap[v.person_id] : visitorsMap[v.visitor_id];
+        list.innerHTML += `
+          <div class="item">
+            <b>${v.plate}</b><br>
+            Modelo: ${v.model || "-"}<br>
+            Cor: ${v.color || "-"}<br>
+            Tipo: ${v.kind || "-"}<br>
+            Vinculado a: ${owner || "—"}<br>
+            <span class="badge">${v.active ? "Ativo" : "Inativo"}</span>
+          </div>
+        `;
+      });
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+
+      await loadPeopleAndVisitors();
+      await loadVehicles();
+      toggleVehicleTargetType();
+    })();
+
+    window.toggleVehicleTargetType = toggleVehicleTargetType;
+    window.saveVehicle = saveVehicle;
+    window.logout = logout;
+  </script>
+</body>
+</html>
