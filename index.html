@@ -3,455 +3,614 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Idcontrol</title>
 
 <script type="module">
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 window.supabase = createClient(
-"https://zbxrpprwjrholrycwsqa.supabase.co",
-"sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+  "https://zbxrpprwjrholrycwsqa.supabase.co",
+  "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
 )
 </script>
 
 <style>
-
 body{
-font-family:Arial;
-background:#0f172a;
-color:white;
-margin:0;
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  margin:0;
 }
-
 .wrap{
-padding:20px;
-max-width:900px;
-margin:auto;
+  padding:20px;
+  max-width:900px;
+  margin:auto;
 }
-
 .card{
-background:#1e293b;
-padding:20px;
-border-radius:12px;
-margin-bottom:15px;
+  background:#1e293b;
+  padding:20px;
+  border-radius:12px;
+  margin-bottom:15px;
 }
-
 button{
-padding:10px;
-border:none;
-border-radius:6px;
-cursor:pointer;
-font-weight:bold;
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:bold;
 }
-
 .primary{
-background:#22c55e;
-color:black;
+  background:#22c55e;
+  color:black;
 }
-
 .ghost{
-background:#334155;
-color:white;
+  background:#334155;
+  color:white;
 }
-
 input,select{
-width:100%;
-padding:10px;
-border:none;
-border-radius:6px;
-margin-top:8px;
-margin-bottom:10px;
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  margin-top:8px;
+  margin-bottom:10px;
 }
-
 .menu button{
-margin-right:5px;
-margin-bottom:5px;
+  margin-right:5px;
+  margin-bottom:5px;
 }
-
 .page{
-display:none;
+  display:none;
 }
-
 .page.active{
-display:block;
+  display:block;
 }
-
 .item{
-background:#0b1220;
-padding:10px;
-border-radius:8px;
-margin-top:10px;
+  background:#0b1220;
+  padding:10px;
+  border-radius:8px;
+  margin-top:10px;
 }
-
+.badge{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:999px;
+  background:#22c55e;
+  color:black;
+  font-size:12px;
+  font-weight:bold;
+  margin-top:6px;
+}
 </style>
-
 </head>
 
 <body>
 
 <div class="wrap">
 
-<div id="login">
-
-<div class="card">
-
-<h2>Idcontrol</h2>
-
-<input id="email" placeholder="Email">
-
-<input id="password" type="password" placeholder="Senha">
-
-<button class="primary" onclick="login()">Entrar</button>
-
-<button class="ghost" onclick="signup()">Criar conta</button>
-
-</div>
-
-</div>
-
-<div id="app" style="display:none">
-
-<div class="menu">
-
-<button onclick="openPage('dashboard')">Dashboard</button>
-
-<button onclick="openPage('people')">Pessoas</button>
-
-<button onclick="openPage('visitors')">Visitantes</button>
-
-<button onclick="openPage('access')">Acessos</button>
-
-<button onclick="openPage('history')">Histórico</button>
-
-<button onclick="logout()">Sair</button>
-
-</div>
-
-<div id="dashboard" class="page active">
-
-<div class="card">
-
-<h3>Painel</h3>
-
-<div id="stats"></div>
-
-</div>
-
-</div>
-
-<div id="people" class="page">
-
-<div class="card">
-
-<h3>Cadastrar pessoa</h3>
-
-<input id="person_name" placeholder="Nome">
-
-<input id="person_document" placeholder="Documento">
-
-<select id="person_type">
-
-<option value="employee">Funcionário</option>
-
-<option value="resident">Morador</option>
-
-<option value="provider">Prestador</option>
-
-</select>
-
-<button class="primary" onclick="savePerson()">Salvar</button>
-
-</div>
-
-<div class="card">
-
-<h3>Lista</h3>
-
-<div id="people_list"></div>
-
-</div>
-
-</div>
-
-<div id="visitors" class="page">
-
-<div class="card">
-
-<h3>Cadastrar visitante</h3>
-
-<input id="visitor_name" placeholder="Nome">
-
-<input id="visitor_document" placeholder="Documento">
-
-<input id="visitor_host" placeholder="Responsável">
-
-<button class="primary" onclick="saveVisitor()">Salvar</button>
-
-</div>
-
-<div class="card">
-
-<h3>Lista</h3>
-
-<div id="visitors_list"></div>
-
-</div>
-
-</div>
-
-<div id="access" class="page">
-
-<div class="card">
-
-<h3>Registrar acesso</h3>
-
-<select id="access_person"></select>
-
-<select id="access_type">
-
-<option value="entry">Entrada</option>
-
-<option value="exit">Saída</option>
-
-</select>
-
-<input id="access_location" placeholder="Local">
-
-<button class="primary" onclick="saveAccess()">Registrar</button>
-
-</div>
-
-<div class="card">
-
-<h3>Últimos acessos</h3>
-
-<div id="access_list"></div>
-
-</div>
-
-</div>
-
-<div id="history" class="page">
-
-<div class="card">
-
-<h3>Histórico</h3>
-
-<div id="history_list"></div>
-
-</div>
-
-</div>
-
-</div>
+  <div id="login">
+    <div class="card">
+      <h2>Idcontrol</h2>
+
+      <input id="email" placeholder="Email">
+      <input id="password" type="password" placeholder="Senha">
+
+      <button class="primary" onclick="login()">Entrar</button>
+      <button class="ghost" onclick="signup()">Criar conta</button>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+
+    <div class="menu">
+      <button onclick="openPage('dashboard')">Dashboard</button>
+      <button onclick="openPage('people')">Pessoas</button>
+      <button onclick="openPage('visitors')">Visitantes</button>
+      <button onclick="openPage('access')">Acessos</button>
+      <button onclick="openPage('inside')">Quem está dentro</button>
+      <button onclick="openPage('history')">Histórico</button>
+      <button onclick="logout()">Sair</button>
+    </div>
+
+    <div id="dashboard" class="page active">
+      <div class="card">
+        <h3>Painel</h3>
+        <div id="stats"></div>
+      </div>
+    </div>
+
+    <div id="people" class="page">
+      <div class="card">
+        <h3>Cadastrar pessoa</h3>
+        <input id="person_name" placeholder="Nome">
+        <input id="person_document" placeholder="Documento">
+        <select id="person_type">
+          <option value="employee">Funcionário</option>
+          <option value="resident">Morador</option>
+          <option value="provider">Prestador</option>
+        </select>
+        <button class="primary" onclick="savePerson()">Salvar</button>
+      </div>
+
+      <div class="card">
+        <h3>Lista</h3>
+        <div id="people_list"></div>
+      </div>
+    </div>
+
+    <div id="visitors" class="page">
+      <div class="card">
+        <h3>Cadastrar visitante</h3>
+        <input id="visitor_name" placeholder="Nome">
+        <input id="visitor_document" placeholder="Documento">
+        <input id="visitor_host" placeholder="Responsável">
+        <button class="primary" onclick="saveVisitor()">Salvar</button>
+      </div>
+
+      <div class="card">
+        <h3>Lista</h3>
+        <div id="visitors_list"></div>
+      </div>
+    </div>
+
+    <div id="access" class="page">
+      <div class="card">
+        <h3>Registrar acesso</h3>
+
+        <select id="access_target_type" onchange="toggleTargetType()">
+          <option value="person">Pessoa</option>
+          <option value="visitor">Visitante</option>
+        </select>
+
+        <select id="access_person"></select>
+        <select id="access_visitor" style="display:none"></select>
+
+        <select id="access_type">
+          <option value="entry">Entrada</option>
+          <option value="exit">Saída</option>
+        </select>
+
+        <input id="access_location" placeholder="Local">
+
+        <button class="primary" onclick="saveAccess()">Registrar</button>
+      </div>
+
+      <div class="card">
+        <h3>Últimos acessos</h3>
+        <div id="access_list"></div>
+      </div>
+    </div>
+
+    <div id="inside" class="page">
+      <div class="card">
+        <h3>Quem está dentro agora</h3>
+        <div id="inside_list"></div>
+      </div>
+    </div>
+
+    <div id="history" class="page">
+      <div class="card">
+        <h3>Histórico</h3>
+        <div id="history_list"></div>
+      </div>
+    </div>
+
+  </div>
 
 </div>
 
 <script>
+function openPage(page){
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"))
+  document.getElementById(page).classList.add("active")
+}
+
+function toggleTargetType(){
+  const type = document.getElementById("access_target_type").value
+  const personSelect = document.getElementById("access_person")
+  const visitorSelect = document.getElementById("access_visitor")
+
+  if(type === "person"){
+    personSelect.style.display = "block"
+    visitorSelect.style.display = "none"
+  }else{
+    personSelect.style.display = "none"
+    visitorSelect.style.display = "block"
+  }
+}
 
 async function login(){
+  const email = document.getElementById("email").value
+  const password = document.getElementById("password").value
 
-const email=document.getElementById("email").value
-const password=document.getElementById("password").value
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-const {error}=await supabase.auth.signInWithPassword({email,password})
+  if(error){
+    alert(error.message)
+    return
+  }
 
-if(error){alert(error.message);return}
-
-init()
-
+  init()
 }
 
 async function signup(){
+  const email = document.getElementById("email").value
+  const password = document.getElementById("password").value
 
-const email=document.getElementById("email").value
-const password=document.getElementById("password").value
+  const { error } = await supabase.auth.signUp({ email, password })
 
-const {error}=await supabase.auth.signUp({email,password})
+  if(error){
+    alert(error.message)
+    return
+  }
 
-if(error){alert(error.message);return}
-
-alert("Conta criada")
-
+  alert("Conta criada")
 }
 
 async function logout(){
-
-await supabase.auth.signOut()
-
-location.reload()
-
-}
-
-function openPage(page){
-
-document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"))
-
-document.getElementById(page).classList.add("active")
-
+  await supabase.auth.signOut()
+  location.reload()
 }
 
 async function getUser(){
+  const { data } = await supabase.auth.getUser()
+  return data.user
+}
 
-const {data}=await supabase.auth.getUser()
+async function addHistory(title, description){
+  const user = await getUser()
 
-return data.user
-
+  await supabase.from("history").insert({
+    title,
+    description,
+    created_by: user.id
+  })
 }
 
 async function savePerson(){
+  const user = await getUser()
 
-const user=await getUser()
+  const name = document.getElementById("person_name").value.trim()
+  const doc = document.getElementById("person_document").value.trim()
+  const type = document.getElementById("person_type").value
 
-const name=document.getElementById("person_name").value
-const doc=document.getElementById("person_document").value
-const type=document.getElementById("person_type").value
+  if(!name){
+    alert("Nome obrigatório")
+    return
+  }
 
-await supabase.from("people").insert({
+  const { error } = await supabase.from("people").insert({
+    full_name: name,
+    document: doc,
+    type: type,
+    created_by: user.id
+  })
 
-full_name:name,
-document:doc,
-type:type,
-created_by:user.id
+  if(error){
+    alert(error.message)
+    return
+  }
 
-})
+  await addHistory("Pessoa cadastrada", `${name} foi cadastrada no sistema.`)
 
-loadPeople()
+  document.getElementById("person_name").value = ""
+  document.getElementById("person_document").value = ""
 
+  loadPeople()
+  loadHistory()
+  loadStats()
 }
 
 async function saveVisitor(){
+  const user = await getUser()
 
-const user=await getUser()
+  const name = document.getElementById("visitor_name").value.trim()
+  const doc = document.getElementById("visitor_document").value.trim()
+  const host = document.getElementById("visitor_host").value.trim()
 
-const name=document.getElementById("visitor_name").value
-const doc=document.getElementById("visitor_document").value
-const host=document.getElementById("visitor_host").value
+  if(!name){
+    alert("Nome obrigatório")
+    return
+  }
 
-await supabase.from("visitors").insert({
+  const { error } = await supabase.from("visitors").insert({
+    full_name: name,
+    document: doc,
+    host_name: host,
+    created_by: user.id
+  })
 
-full_name:name,
-document:doc,
-host_name:host,
-created_by:user.id
+  if(error){
+    alert(error.message)
+    return
+  }
 
-})
+  await addHistory("Visitante cadastrado", `${name} foi cadastrado como visitante.`)
 
-loadVisitors()
+  document.getElementById("visitor_name").value = ""
+  document.getElementById("visitor_document").value = ""
+  document.getElementById("visitor_host").value = ""
 
+  loadVisitors()
+  loadHistory()
+  loadStats()
 }
 
 async function saveAccess(){
+  const user = await getUser()
 
-const user=await getUser()
+  const targetType = document.getElementById("access_target_type").value
+  const personId = document.getElementById("access_person").value
+  const visitorId = document.getElementById("access_visitor").value
+  const type = document.getElementById("access_type").value
+  const location = document.getElementById("access_location").value.trim()
 
-const person=document.getElementById("access_person").value
-const type=document.getElementById("access_type").value
-const location=document.getElementById("access_location").value
+  if(targetType === "person" && !personId){
+    alert("Selecione uma pessoa")
+    return
+  }
 
-await supabase.from("access_logs").insert({
+  if(targetType === "visitor" && !visitorId){
+    alert("Selecione um visitante")
+    return
+  }
 
-person_id:person,
-access_type:type,
-location_name:location,
-created_by:user.id
+  const payload = {
+    access_type: type,
+    location_name: location,
+    created_by: user.id,
+    person_id: targetType === "person" ? personId : null,
+    visitor_id: targetType === "visitor" ? visitorId : null
+  }
 
-})
+  const { error } = await supabase.from("access_logs").insert(payload)
 
-loadAccess()
+  if(error){
+    alert(error.message)
+    return
+  }
 
+  await addHistory(
+    "Acesso registrado",
+    `${type === "entry" ? "Entrada" : "Saída"} registrada.`
+  )
+
+  document.getElementById("access_location").value = ""
+
+  loadAccess()
+  loadInside()
+  loadHistory()
+  loadStats()
 }
 
 async function loadPeople(){
+  const { data, error } = await supabase
+    .from("people")
+    .select("*")
+    .order("created_at", { ascending: false })
 
-const {data}=await supabase.from("people").select("*")
+  const list = document.getElementById("people_list")
+  const select = document.getElementById("access_person")
 
-const list=document.getElementById("people_list")
+  list.innerHTML = ""
+  select.innerHTML = ""
 
-const select=document.getElementById("access_person")
+  if(error){
+    list.innerHTML = `<div class="item">Erro ao carregar pessoas</div>`
+    return
+  }
 
-list.innerHTML=""
-select.innerHTML=""
+  if(!data || data.length === 0){
+    list.innerHTML = `<div class="item">Nenhuma pessoa cadastrada</div>`
+    select.innerHTML = `<option value="">Nenhuma pessoa</option>`
+    return
+  }
 
-data.forEach(p=>{
-
-list.innerHTML+=`<div class="item">${p.full_name}</div>`
-
-select.innerHTML+=`<option value="${p.id}">${p.full_name}</option>`
-
-})
-
+  data.forEach(p => {
+    list.innerHTML += `<div class="item">${p.full_name}</div>`
+    select.innerHTML += `<option value="${p.id}">${p.full_name}</option>`
+  })
 }
 
 async function loadVisitors(){
+  const { data, error } = await supabase
+    .from("visitors")
+    .select("*")
+    .order("created_at", { ascending: false })
 
-const {data}=await supabase.from("visitors").select("*")
+  const list = document.getElementById("visitors_list")
+  const select = document.getElementById("access_visitor")
 
-const list=document.getElementById("visitors_list")
+  list.innerHTML = ""
+  select.innerHTML = ""
 
-list.innerHTML=""
+  if(error){
+    list.innerHTML = `<div class="item">Erro ao carregar visitantes</div>`
+    return
+  }
 
-data.forEach(v=>{
+  if(!data || data.length === 0){
+    list.innerHTML = `<div class="item">Nenhum visitante cadastrado</div>`
+    select.innerHTML = `<option value="">Nenhum visitante</option>`
+    return
+  }
 
-list.innerHTML+=`<div class="item">${v.full_name}</div>`
-
-})
-
+  data.forEach(v => {
+    list.innerHTML += `<div class="item">${v.full_name}</div>`
+    select.innerHTML += `<option value="${v.id}">${v.full_name}</option>`
+  })
 }
 
 async function loadAccess(){
+  const { data, error } = await supabase
+    .from("access_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(20)
 
-const {data}=await supabase.from("access_logs").select("*").order("created_at",{ascending:false})
+  const list = document.getElementById("access_list")
+  list.innerHTML = ""
 
-const list=document.getElementById("access_list")
+  if(error){
+    list.innerHTML = `<div class="item">Erro ao carregar acessos</div>`
+    return
+  }
 
-list.innerHTML=""
+  if(!data || data.length === 0){
+    list.innerHTML = `<div class="item">Nenhum acesso registrado</div>`
+    return
+  }
 
-data.forEach(a=>{
-
-list.innerHTML+=`<div class="item">${a.access_type} - ${a.location_name}</div>`
-
-})
-
+  data.forEach(a => {
+    list.innerHTML += `<div class="item">${a.access_type} - ${a.location_name || "-"}</div>`
+  })
 }
 
 async function loadHistory(){
+  const { data, error } = await supabase
+    .from("history")
+    .select("*")
+    .order("created_at", { ascending: false })
 
-const {data}=await supabase.from("history").select("*")
+  const list = document.getElementById("history_list")
+  list.innerHTML = ""
 
-const list=document.getElementById("history_list")
+  if(error){
+    list.innerHTML = `<div class="item">Erro ao carregar histórico</div>`
+    return
+  }
 
-list.innerHTML=""
+  if(!data || data.length === 0){
+    list.innerHTML = `<div class="item">Nenhum histórico</div>`
+    return
+  }
 
-data.forEach(h=>{
+  data.forEach(h => {
+    list.innerHTML += `<div class="item">${h.title}</div>`
+  })
+}
 
-list.innerHTML+=`<div class="item">${h.title}</div>`
+async function loadInside(){
+  const insideList = document.getElementById("inside_list")
+  insideList.innerHTML = ""
 
-})
+  const { data: accessData, error: accessError } = await supabase
+    .from("access_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
 
+  if(accessError){
+    insideList.innerHTML = `<div class="item">Erro ao carregar presença atual</div>`
+    return
+  }
+
+  const latestByTarget = {}
+
+  ;(accessData || []).forEach(a => {
+    const key = a.person_id ? `person_${a.person_id}` : `visitor_${a.visitor_id}`
+    if(!latestByTarget[key]){
+      latestByTarget[key] = a
+    }
+  })
+
+  const present = Object.values(latestByTarget).filter(a => a.access_type === "entry")
+
+  if(present.length === 0){
+    insideList.innerHTML = `<div class="item">Ninguém está dentro no momento</div>`
+    return
+  }
+
+  const personIds = present.filter(x => x.person_id).map(x => x.person_id)
+  const visitorIds = present.filter(x => x.visitor_id).map(x => x.visitor_id)
+
+  let peopleMap = {}
+  let visitorsMap = {}
+
+  if(personIds.length){
+    const { data: peopleData } = await supabase
+      .from("people")
+      .select("*")
+      .in("id", personIds)
+
+    ;(peopleData || []).forEach(p => {
+      peopleMap[p.id] = p
+    })
+  }
+
+  if(visitorIds.length){
+    const { data: visitorData } = await supabase
+      .from("visitors")
+      .select("*")
+      .in("id", visitorIds)
+
+    ;(visitorData || []).forEach(v => {
+      visitorsMap[v.id] = v
+    })
+  }
+
+  present.forEach(a => {
+    const person = a.person_id ? peopleMap[a.person_id] : null
+    const visitor = a.visitor_id ? visitorsMap[a.visitor_id] : null
+    const name = person?.full_name || visitor?.full_name || "Registro"
+    const kind = person ? "Pessoa" : "Visitante"
+
+    insideList.innerHTML += `
+      <div class="item">
+        <b>${name}</b><br>
+        ${kind}<br>
+        Local: ${a.location_name || "-"}<br>
+        <span class="badge">Dentro</span>
+      </div>
+    `
+  })
+}
+
+async function loadStats(){
+  const peopleRes = await supabase.from("people").select("*", { count: "exact", head: true })
+  const visitorsRes = await supabase.from("visitors").select("*", { count: "exact", head: true })
+  const accessRes = await supabase.from("access_logs").select("*", { count: "exact", head: true })
+
+  const { data: accessData } = await supabase
+    .from("access_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+
+  const latestByTarget = {}
+
+  ;(accessData || []).forEach(a => {
+    const key = a.person_id ? `person_${a.person_id}` : `visitor_${a.visitor_id}`
+    if(!latestByTarget[key]){
+      latestByTarget[key] = a
+    }
+  })
+
+  const insideCount = Object.values(latestByTarget).filter(a => a.access_type === "entry").length
+
+  document.getElementById("stats").innerHTML = `
+    <div class="item">Pessoas: ${peopleRes.count || 0}</div>
+    <div class="item">Visitantes: ${visitorsRes.count || 0}</div>
+    <div class="item">Acessos: ${accessRes.count || 0}</div>
+    <div class="item">Dentro agora: ${insideCount}</div>
+  `
 }
 
 async function init(){
+  document.getElementById("login").style.display = "none"
+  document.getElementById("app").style.display = "block"
 
-document.getElementById("login").style.display="none"
-document.getElementById("app").style.display="block"
-
-loadPeople()
-loadVisitors()
-loadAccess()
-loadHistory()
-
+  await loadPeople()
+  await loadVisitors()
+  await loadAccess()
+  await loadInside()
+  await loadHistory()
+  await loadStats()
+  toggleTargetType()
 }
 
-(async()=>{
-
-const {data}=await supabase.auth.getSession()
-
-if(data.session) init()
-
+;(async () => {
+  const { data } = await supabase.auth.getSession()
+  if(data.session) init()
 })()
-
 </script>
 
 </body>
