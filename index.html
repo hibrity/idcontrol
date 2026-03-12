@@ -1,1 +1,707 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol</title>
+  <style>
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Arial, sans-serif;
+      background:#0f172a;
+      color:white;
+    }
+    .hidden{display:none!important}
+    .topbar{
+      background:#111827;
+      padding:14px 16px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .brand{
+      font-size:20px;
+      font-weight:bold;
+    }
+    .wrap{
+      padding:16px;
+      max-width:900px;
+      margin:0 auto;
+    }
+    .card{
+      background:#1e293b;
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
+    }
+    .title{
+      font-size:22px;
+      font-weight:bold;
+      margin-bottom:8px;
+    }
+    .muted{
+      color:#cbd5e1;
+      font-size:14px;
+    }
+    input, select, textarea{
+      width:100%;
+      padding:12px;
+      border:none;
+      border-radius:10px;
+      margin-top:8px;
+      margin-bottom:12px;
+    }
+    button{
+      border:none;
+      border-radius:10px;
+      padding:11px 14px;
+      font-weight:bold;
+      cursor:pointer;
+    }
+    .primary{
+      background:#22c55e;
+      color:black;
+    }
+    .ghost{
+      background:#334155;
+      color:white;
+    }
+    .danger{
+      background:#ef4444;
+      color:white;
+    }
+    .menu{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+    .menu button.active{
+      background:#22c55e;
+      color:black;
+    }
+    .page{display:none}
+    .page.active{display:block}
+    .grid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:12px;
+    }
+    .stat{
+      background:#0b1220;
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:12px;
+      padding:16px;
+    }
+    .stat b{
+      display:block;
+      font-size:24px;
+      margin-top:6px;
+    }
+    .item{
+      background:#0b1220;
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:12px;
+      padding:12px;
+      margin-top:10px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .row > *{
+      flex:1;
+      min-width:140px;
+    }
+    .center{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+    }
+    .login-box{
+      width:100%;
+      max-width:360px;
+    }
+    .small{
+      font-size:12px;
+      color:#94a3b8;
+      margin-top:10px;
+    }
+    .badge{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:12px;
+      margin-top:6px;
+      background:#334155;
+    }
+  </style>
+</head>
+<body>
 
+  <section id="login-screen" class="center">
+    <div class="login-box card">
+      <div class="title">Idcontrol</div>
+      <div class="muted">Controle de acesso de pessoas</div>
+
+      <input id="login-email" type="email" placeholder="Email" />
+      <input id="login-password" type="password" placeholder="Senha" />
+
+      <div class="row">
+        <button class="primary" onclick="login()">Entrar</button>
+        <button class="ghost" onclick="signup()">Criar conta</button>
+      </div>
+
+      <div class="small">
+        Use email e senha do Supabase Auth.
+      </div>
+    </div>
+  </section>
+
+  <section id="app-screen" class="hidden">
+    <div class="topbar">
+      <div class="brand">Idcontrol</div>
+      <button class="danger" onclick="logout()">Sair</button>
+    </div>
+
+    <div class="wrap">
+      <div class="menu">
+        <button id="btn-dashboard" class="active" onclick="openPage('dashboard')">Dashboard</button>
+        <button id="btn-people" onclick="openPage('people')">Pessoas</button>
+        <button id="btn-visitors" onclick="openPage('visitors')">Visitantes</button>
+        <button id="btn-accesses" onclick="openPage('accesses')">Acessos</button>
+        <button id="btn-history" onclick="openPage('history')">Histórico</button>
+      </div>
+
+      <section id="dashboard" class="page active">
+        <div class="card">
+          <div class="title">Painel Inicial</div>
+          <div class="muted">Visão geral do sistema.</div>
+        </div>
+
+        <div class="grid">
+          <div class="stat">
+            Pessoas cadastradas
+            <b id="stat-people">0</b>
+          </div>
+          <div class="stat">
+            Visitantes cadastrados
+            <b id="stat-visitors">0</b>
+          </div>
+          <div class="stat">
+            Registros no histórico
+            <b id="stat-history">0</b>
+          </div>
+          <div class="stat">
+            Registros de acesso
+            <b id="stat-accesses">0</b>
+          </div>
+        </div>
+      </section>
+
+      <section id="people" class="page">
+        <div class="card">
+          <div class="title">Pessoas</div>
+          <div class="muted">Cadastre funcionários, moradores ou prestadores.</div>
+
+          <input id="person-name" placeholder="Nome completo" />
+          <input id="person-document" placeholder="Documento" />
+          <select id="person-type">
+            <option value="employee">Funcionário</option>
+            <option value="resident">Morador</option>
+            <option value="provider">Prestador</option>
+            <option value="other">Outro</option>
+          </select>
+
+          <button class="primary" onclick="savePerson()">Salvar pessoa</button>
+        </div>
+
+        <div class="card">
+          <div class="title">Lista de pessoas</div>
+          <div id="people-list"></div>
+        </div>
+      </section>
+
+      <section id="visitors" class="page">
+        <div class="card">
+          <div class="title">Visitantes</div>
+          <div class="muted">Cadastre visitantes e responsável.</div>
+
+          <input id="visitor-name" placeholder="Nome do visitante" />
+          <input id="visitor-document" placeholder="Documento" />
+          <input id="visitor-host" placeholder="Responsável / anfitrião" />
+
+          <button class="primary" onclick="saveVisitor()">Salvar visitante</button>
+        </div>
+
+        <div class="card">
+          <div class="title">Lista de visitantes</div>
+          <div id="visitors-list"></div>
+        </div>
+      </section>
+
+      <section id="accesses" class="page">
+        <div class="card">
+          <div class="title">Acessos</div>
+          <div class="muted">Registre entrada e saída de pessoas ou visitantes.</div>
+
+          <select id="access-target-type" onchange="toggleAccessTarget()">
+            <option value="person">Pessoa</option>
+            <option value="visitor">Visitante</option>
+          </select>
+
+          <select id="access-person-id"></select>
+          <select id="access-visitor-id" class="hidden"></select>
+
+          <select id="access-type">
+            <option value="entry">Entrada</option>
+            <option value="exit">Saída</option>
+          </select>
+
+          <input id="access-location" placeholder="Local (ex: Portaria principal)" />
+          <textarea id="access-notes" placeholder="Observações"></textarea>
+
+          <button class="primary" onclick="saveAccess()">Registrar acesso</button>
+        </div>
+
+        <div class="card">
+          <div class="title">Últimos acessos</div>
+          <div id="accesses-list"></div>
+        </div>
+      </section>
+
+      <section id="history" class="page">
+        <div class="card">
+          <div class="title">Histórico</div>
+          <div class="muted">Registros gerados pelo sistema.</div>
+          <div id="history-list"></div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = "https://zbxrpprwjrholrycwsqa.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let peopleCache = [];
+    let visitorsCache = [];
+
+    function showLogin() {
+      document.getElementById("login-screen").classList.remove("hidden");
+      document.getElementById("app-screen").classList.add("hidden");
+    }
+
+    function showApp() {
+      document.getElementById("login-screen").classList.add("hidden");
+      document.getElementById("app-screen").classList.remove("hidden");
+    }
+
+    function openPage(page) {
+      ["dashboard","people","visitors","accesses","history"].forEach(id => {
+        document.getElementById(id).classList.remove("active");
+        document.getElementById("btn-" + id).classList.remove("active");
+      });
+
+      document.getElementById(page).classList.add("active");
+      document.getElementById("btn-" + page).classList.add("active");
+    }
+
+    function toggleAccessTarget() {
+      const type = document.getElementById("access-target-type").value;
+      const personSelect = document.getElementById("access-person-id");
+      const visitorSelect = document.getElementById("access-visitor-id");
+
+      if (type === "person") {
+        personSelect.classList.remove("hidden");
+        visitorSelect.classList.add("hidden");
+      } else {
+        personSelect.classList.add("hidden");
+        visitorSelect.classList.remove("hidden");
+      }
+    }
+
+    async function checkSession() {
+      const { data } = await supabase.auth.getSession();
+      const user = data.session?.user;
+
+      if (user) {
+        showApp();
+        await loadAll();
+      } else {
+        showLogin();
+      }
+    }
+
+    async function login() {
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value.trim();
+
+      if (!email || !password) {
+        alert("Preencha email e senha.");
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      showApp();
+      await loadAll();
+    }
+
+    async function signup() {
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value.trim();
+
+      if (!email || !password) {
+        alert("Preencha email e senha.");
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({ email, password });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      alert("Conta criada com sucesso.");
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      showLogin();
+    }
+
+    async function loadStats() {
+      const peopleRes = await supabase.from("people").select("*", { count: "exact", head: true });
+      const visitorsRes = await supabase.from("visitors").select("*", { count: "exact", head: true });
+      const historyRes = await supabase.from("history").select("*", { count: "exact", head: true });
+      const accessesRes = await supabase.from("access_logs").select("*", { count: "exact", head: true });
+
+      document.getElementById("stat-people").innerText = peopleRes.count || 0;
+      document.getElementById("stat-visitors").innerText = visitorsRes.count || 0;
+      document.getElementById("stat-history").innerText = historyRes.count || 0;
+      document.getElementById("stat-accesses").innerText = accessesRes.count || 0;
+    }
+
+    async function loadPeople() {
+      const { data, error } = await supabase
+        .from("people")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const list = document.getElementById("people-list");
+      const select = document.getElementById("access-person-id");
+      list.innerHTML = "";
+      select.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar pessoas.</div>`;
+        return;
+      }
+
+      peopleCache = data || [];
+
+      if (!peopleCache.length) {
+        list.innerHTML = `<div class="item">Nenhuma pessoa cadastrada.</div>`;
+      } else {
+        peopleCache.forEach((p) => {
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <b>${p.full_name || ""}</b><br>
+            Documento: ${p.document || "-"}<br>
+            Tipo: ${p.type || "-"}
+            <div class="badge">${p.status || "active"}</div>
+          `;
+          list.appendChild(div);
+        });
+      }
+
+      if (!peopleCache.length) {
+        select.innerHTML = `<option value="">Nenhuma pessoa cadastrada</option>`;
+      } else {
+        select.innerHTML = peopleCache.map(p =>
+          `<option value="${p.id}">${p.full_name || "Pessoa"}${p.document ? " - " + p.document : ""}</option>`
+        ).join("");
+      }
+    }
+
+    async function loadVisitors() {
+      const { data, error } = await supabase
+        .from("visitors")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const list = document.getElementById("visitors-list");
+      const select = document.getElementById("access-visitor-id");
+      list.innerHTML = "";
+      select.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar visitantes.</div>`;
+        return;
+      }
+
+      visitorsCache = data || [];
+
+      if (!visitorsCache.length) {
+        list.innerHTML = `<div class="item">Nenhum visitante cadastrado.</div>`;
+      } else {
+        visitorsCache.forEach((v) => {
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <b>${v.full_name || ""}</b><br>
+            Documento: ${v.document || "-"}<br>
+            Responsável: ${v.host_name || "-"}
+            <div class="badge">${v.status || "pending"}</div>
+          `;
+          list.appendChild(div);
+        });
+      }
+
+      if (!visitorsCache.length) {
+        select.innerHTML = `<option value="">Nenhum visitante cadastrado</option>`;
+      } else {
+        select.innerHTML = visitorsCache.map(v =>
+          `<option value="${v.id}">${v.full_name || "Visitante"}${v.document ? " - " + v.document : ""}</option>`
+        ).join("");
+      }
+    }
+
+    async function loadAccesses() {
+      const { data, error } = await supabase
+        .from("access_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      const list = document.getElementById("accesses-list");
+      list.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar acessos.</div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        list.innerHTML = `<div class="item">Nenhum acesso registrado.</div>`;
+        return;
+      }
+
+      data.forEach((a) => {
+        const person = peopleCache.find(p => p.id === a.person_id);
+        const visitor = visitorsCache.find(v => v.id === a.visitor_id);
+        const name = person?.full_name || visitor?.full_name || "Registro";
+        const kind = a.person_id ? "Pessoa" : "Visitante";
+        const typeLabel = a.access_type === "entry" ? "Entrada" : "Saída";
+
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <b>${typeLabel}</b><br>
+          ${kind}: ${name}<br>
+          Local: ${a.location_name || "-"}<br>
+          Método: ${a.method || "manual"}<br>
+          Observações: ${a.notes || "-"}<br>
+          <span class="muted">${new Date(a.created_at).toLocaleString("pt-BR")}</span>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function loadHistory() {
+      const { data, error } = await supabase
+        .from("history")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const list = document.getElementById("history-list");
+      list.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar histórico.</div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        list.innerHTML = `<div class="item">Nenhum registro encontrado.</div>`;
+        return;
+      }
+
+      data.forEach((h) => {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <b>${h.title || "Registro"}</b><br>
+          ${h.description || "-"}<br>
+          <span class="muted">${new Date(h.created_at).toLocaleString("pt-BR")}</span>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function addHistory(title, description) {
+      await supabase.from("history").insert({ title, description });
+    }
+
+    async function savePerson() {
+      const full_name = document.getElementById("person-name").value.trim();
+      const documentValue = document.getElementById("person-document").value.trim();
+      const type = document.getElementById("person-type").value;
+
+      if (!full_name) {
+        alert("Nome obrigatório.");
+        return;
+      }
+
+      const { error } = await supabase.from("people").insert({
+        full_name,
+        document: documentValue,
+        type,
+        status: "active"
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await addHistory("Pessoa cadastrada", `${full_name} foi cadastrado(a) no sistema.`);
+
+      document.getElementById("person-name").value = "";
+      document.getElementById("person-document").value = "";
+      document.getElementById("person-type").value = "employee";
+
+      await loadPeople();
+      await loadHistory();
+      await loadStats();
+      openPage("people");
+    }
+
+    async function saveVisitor() {
+      const full_name = document.getElementById("visitor-name").value.trim();
+      const documentValue = document.getElementById("visitor-document").value.trim();
+      const host_name = document.getElementById("visitor-host").value.trim();
+
+      if (!full_name) {
+        alert("Nome obrigatório.");
+        return;
+      }
+
+      const { error } = await supabase.from("visitors").insert({
+        full_name,
+        document: documentValue,
+        host_name,
+        status: "pending"
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await addHistory("Visitante cadastrado", `${full_name} foi registrado(a) como visitante.`);
+
+      document.getElementById("visitor-name").value = "";
+      document.getElementById("visitor-document").value = "";
+      document.getElementById("visitor-host").value = "";
+
+      await loadVisitors();
+      await loadHistory();
+      await loadStats();
+      openPage("visitors");
+    }
+
+    async function saveAccess() {
+      const targetType = document.getElementById("access-target-type").value;
+      const personId = document.getElementById("access-person-id").value;
+      const visitorId = document.getElementById("access-visitor-id").value;
+      const accessType = document.getElementById("access-type").value;
+      const locationName = document.getElementById("access-location").value.trim();
+      const notes = document.getElementById("access-notes").value.trim();
+
+      if (targetType === "person" && !personId) {
+        alert("Selecione uma pessoa.");
+        return;
+      }
+
+      if (targetType === "visitor" && !visitorId) {
+        alert("Selecione um visitante.");
+        return;
+      }
+
+      const payload = {
+        person_id: targetType === "person" ? personId : null,
+        visitor_id: targetType === "visitor" ? visitorId : null,
+        access_type: accessType,
+        method: "manual",
+        location_name: locationName || null,
+        notes: notes || null
+      };
+
+      const { error } = await supabase.from("access_logs").insert(payload);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      const selectedPerson = peopleCache.find(p => p.id === personId);
+      const selectedVisitor = visitorsCache.find(v => v.id === visitorId);
+      const targetName = selectedPerson?.full_name || selectedVisitor?.full_name || "Registro";
+      const typeLabel = accessType === "entry" ? "Entrada" : "Saída";
+
+      await addHistory(
+        "Acesso registrado",
+        `${typeLabel} registrada para ${targetName}${locationName ? " em " + locationName : ""}.`
+      );
+
+      document.getElementById("access-location").value = "";
+      document.getElementById("access-notes").value = "";
+
+      await loadAccesses();
+      await loadHistory();
+      await loadStats();
+      openPage("accesses");
+    }
+
+    async function loadAll() {
+      await loadPeople();
+      await loadVisitors();
+      await loadAccesses();
+      await loadHistory();
+      await loadStats();
+      toggleAccessTarget();
+    }
+
+    window.openPage = openPage;
+    window.toggleAccessTarget = toggleAccessTarget;
+    window.login = login;
+    window.signup = signup;
+    window.logout = logout;
+    window.savePerson = savePerson;
+    window.saveVisitor = saveVisitor;
+    window.saveAccess = saveAccess;
+
+    await checkSession();
+  </script>
+</body>
+</html>
