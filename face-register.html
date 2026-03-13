@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cadastro Facial</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    body{font-family:Arial;background:#0f172a;color:#fff;margin:0}
+    .wrap{max-width:900px;margin:auto;padding:20px}
+    .card{background:#1e293b;padding:20px;border-radius:12px;margin-bottom:16px}
+    video{width:100%;border-radius:10px;background:#000}
+    canvas{display:none}
+    button{padding:10px 12px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
+    .primary{background:#22c55e;color:#000}
+    .ghost{background:#334155;color:#fff}
+    select{width:100%;padding:10px;border:none;border-radius:8px;margin:10px 0}
+    .item{background:#0b1220;padding:12px;border-radius:10px;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2>Cadastro Facial</h2>
+      <button class="ghost" onclick="location.href='index.html'">← Voltar</button>
+    </div>
+
+    <div class="card">
+      <h3>Selecionar pessoa</h3>
+      <select id="person_id"></select>
+    </div>
+
+    <div class="card">
+      <h3>Câmera</h3>
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary" onclick="captureFace()">Capturar rosto</button>
+        <button class="ghost" onclick="startCamera()">Reiniciar câmera</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resultado</h3>
+      <div id="result" class="item">Nenhuma captura ainda.</div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const result = document.getElementById("result");
+    let stream = null;
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function startCamera() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false
+      });
+      video.srcObject = stream;
+    }
+
+    async function loadPeople() {
+      const { data } = await supabase.from("people").select("id,full_name").order("full_name");
+      const select = document.getElementById("person_id");
+      select.innerHTML = "";
+      (data || []).forEach(p => {
+        select.innerHTML += `<option value="${p.id}">${p.full_name}</option>`;
+      });
+    }
+
+    async function captureFace() {
+      const user = await getUser();
+      const personId = document.getElementById("person_id").value;
+
+      if (!personId) {
+        alert("Selecione uma pessoa.");
+        return;
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.8);
+
+      const { error } = await supabase.from("face_profiles").insert({
+        created_by: user.id,
+        person_id: personId,
+        image_base64: imageBase64
+      });
+
+      if (error) {
+        result.innerHTML = `Erro ao salvar rosto: ${error.message}`;
+        return;
+      }
+
+      result.innerHTML = "Rosto cadastrado com sucesso.";
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+      await loadPeople();
+      await startCamera();
+    })();
+
+    window.captureFace = captureFace;
+    window.startCamera = startCamera;
+  </script>
+</body>
+</html>
