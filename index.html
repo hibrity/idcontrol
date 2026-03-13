@@ -385,20 +385,38 @@
       return data.user;
     }
 
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error("Erro ao buscar organization_id:", error.message);
+        return null;
+      }
+
+      return data.organization_id;
+    }
+
     async function addHistory(title, description) {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       await supabase.from("history").insert({
         title,
         description,
-        created_by: user.id
+        created_by: user.id,
+        organization_id: organizationId
       });
     }
 
     async function savePerson() {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       const name = document.getElementById("person_name").value.trim();
       const doc = document.getElementById("person_document").value.trim();
@@ -414,7 +432,8 @@
         document: doc,
         type,
         status: "active",
-        created_by: user.id
+        created_by: user.id,
+        organization_id: organizationId
       });
 
       if (error) {
@@ -434,7 +453,8 @@
 
     async function saveVisitor() {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       const name = document.getElementById("visitor_name").value.trim();
       const doc = document.getElementById("visitor_document").value.trim();
@@ -450,7 +470,8 @@
         document: doc,
         host_name: host,
         status: "pending",
-        created_by: user.id
+        created_by: user.id,
+        organization_id: organizationId
       });
 
       if (error) {
@@ -471,7 +492,8 @@
 
     async function saveTag() {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       const targetType = document.getElementById("tag_target_type").value;
       const personId = document.getElementById("tag_person").value;
@@ -496,6 +518,7 @@
 
       const { error } = await supabase.from("tags").insert({
         created_by: user.id,
+        organization_id: organizationId,
         person_id: targetType === "person" ? personId : null,
         visitor_id: targetType === "visitor" ? visitorId : null,
         code,
@@ -518,7 +541,8 @@
 
     async function saveAccess() {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       const targetType = document.getElementById("access_target_type").value;
       const personId = document.getElementById("access_person").value;
@@ -543,6 +567,7 @@
         notes: notes || null,
         method: "manual",
         created_by: user.id,
+        organization_id: organizationId,
         person_id: targetType === "person" ? personId : null,
         visitor_id: targetType === "visitor" ? visitorId : null
       };
@@ -570,7 +595,8 @@
 
     async function registerAccessByTag(tagCode) {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       const { data: tag, error: tagError } = await supabase
         .from("tags")
@@ -586,6 +612,7 @@
 
       const { error } = await supabase.from("access_logs").insert({
         created_by: user.id,
+        organization_id: organizationId,
         person_id: tag.person_id,
         visitor_id: tag.visitor_id,
         access_type: "entry",
