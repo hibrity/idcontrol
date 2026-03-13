@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Acesso Facial</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    body{font-family:Arial;background:#0f172a;color:#fff;margin:0}
+    .wrap{max-width:900px;margin:auto;padding:20px}
+    .card{background:#1e293b;padding:20px;border-radius:12px;margin-bottom:16px}
+    video{width:100%;border-radius:10px;background:#000}
+    canvas{display:none}
+    button{padding:10px 12px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
+    .primary{background:#22c55e;color:#000}
+    .ghost{background:#334155;color:#fff}
+    .item{background:#0b1220;padding:12px;border-radius:10px;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h2>Acesso Facial</h2>
+      <button class="ghost" onclick="location.href='index.html'">← Voltar</button>
+    </div>
+
+    <div class="card">
+      <h3>Câmera</h3>
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary" onclick="captureForAccess()">Capturar para acesso</button>
+        <button class="ghost" onclick="startCamera()">Reiniciar câmera</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resultado</h3>
+      <div id="result" class="item">Nenhuma tentativa ainda.</div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const result = document.getElementById("result");
+    let stream = null;
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function startCamera() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false
+      });
+      video.srcObject = stream;
+    }
+
+    async function captureForAccess() {
+      const user = await getUser();
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageBase64 = canvas.toDataURL("image/jpeg", 0.8);
+
+      const { data: faces, error } = await supabase
+        .from("face_profiles")
+        .select("id,person_id,image_base64")
+        .limit(1);
+
+      if (error) {
+        result.innerHTML = `Erro ao consultar faces: ${error.message}`;
+        return;
+      }
+
+      if (!faces || faces.length === 0) {
+        result.innerHTML = "Nenhum rosto cadastrado ainda.";
+        return;
+      }
+
+      result.innerHTML = `
+        Captura realizada.<br>
+        Próximo passo: comparar a imagem atual com os rostos cadastrados.
+      `;
+
+      await supabase.from("history").insert({
+        title: "Tentativa de acesso facial",
+        description: "Captura facial realizada para comparação.",
+        created_by: user.id
+      });
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+      await startCamera();
+    })();
+
+    window.captureForAccess = captureForAccess;
+    window.startCamera = startCamera;
+  </script>
+</body>
+</html>
