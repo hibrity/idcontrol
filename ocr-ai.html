@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • OCR com Gemini</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+    .title { font-size: 24px; font-weight: bold; }
+    .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 16px; }
+    .item { background: #0b1220; padding: 12px; border-radius: 10px; margin-top: 10px; border: 1px solid rgba(255,255,255,.06); }
+    video { width: 100%; border-radius: 10px; background: black; }
+    canvas { display: none; }
+    button, a.btn {
+      display: inline-block; padding: 10px 12px; border: none; border-radius: 8px;
+      font-weight: bold; text-decoration: none; cursor: pointer;
+    }
+    .primary { background: #22c55e; color: black; }
+    .ghost { background: #334155; color: white; }
+    .danger { background: #ef4444; color: white; }
+    .muted { color: #cbd5e1; font-size: 14px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .badge {
+      display:inline-block; margin-top:6px; padding:4px 8px; border-radius:999px;
+      background:#22c55e; color:black; font-size:12px; font-weight:bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">OCR com Gemini</div>
+        <div class="muted">Capture a placa e deixe a IA identificar o texto.</div>
+      </div>
+      <div class="row">
+        <a class="btn ghost" href="./index.html">← Voltar</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Câmera</h3>
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+
+      <div class="row" style="margin-top: 12px;">
+        <button class="primary" onclick="captureAndSend()">Capturar com Gemini</button>
+        <button class="ghost" onclick="startCamera()">Reiniciar câmera</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resposta da IA</h3>
+      <div id="ai_result" class="item">Nenhuma leitura ainda.</div>
+    </div>
+
+    <div class="card">
+      <h3>Veículo localizado</h3>
+      <div id="vehicle_result" class="item">Nenhuma busca ainda.</div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const aiResult = document.getElementById("ai_result");
+    const vehicleResult = document.getElementById("vehicle_result");
+    let cameraStream = null;
+
+    function normalizePlate(v) {
+      return (v || "")
+        .toUpperCase()
+        .replace(/\s+/g, "")
+        .replace(/[^A-Z0-9]/g, "")
+        .trim();
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await stopCamera();
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function addHistory(title, description) {
+      const user = await getUser();
+      if (!user) return;
+
+      await supabase.from("history").insert({
+        title,
+        description,
+        created_by: user.id
+      });
+    }
+
+    async function startCamera() {
+      await stopCamera();
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        video.srcObject = cameraStream;
+      } catch (err) {
+        alert("Erro ao acessar câmera/webcam.");
+      }
+    }
+
+    async function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+    }
+
+    async function captureAndSend() {
+      if (!video.videoWidth || !video.videoHeight) {
+        alert("A câmera ainda não está pronta.");
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      aiResult.innerHTML = "Enviando imagem para Gemini...";
+      vehicleResult.innerHTML = "Processando...";
+
+      const base64Image = canvas.toDataURL("image/jpeg", 0.9);
+
+      const { data, error } = await supabase.functions.invoke("plate-gemini", {
+        body: { image: base64Image }
+      });
+
+      if (error) {
+        aiResult.innerHTML = `<div class="item">Erro ao chamar Gemini: ${error.message}</div>`;
+        return;
+      }
+
+      const plate = normalizePlate(data?.plate || "");
+      aiResult.innerHTML = `
+        <b>Placa retornada pelo Gemini:</b><br>
+        ${plate || "não identificada"}
+      `;
+
+      if (!plate) {
+        await addHistory("Gemini sem leitura válida", "O Gemini não conseguiu identificar uma placa.");
+        vehicleResult.innerHTML = `<div class="item">Nenhuma placa válida identificada.</div>`;
+        return;
+      }
+
+      await processPlate(plate);
+    }
+
+    async function processPlate(plate) {
+      const user = await getUser();
+      if (!user) return;
+
+      const { data: vehicle, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("plate", plate)
+        .single();
+
+      if (error || !vehicle) {
+        vehicleResult.innerHTML = `
+          <div class="item">
+            <b>Veículo não encontrado</b><br>
+            Placa: ${plate}
+          </div>
+        `;
+        await addHistory("Placa não encontrada via Gemini", `Placa ${plate} não encontrada.`);
+        return;
+      }
+
+      let ownerName = "—";
+      let ownerType = "—";
+
+      if (vehicle.person_id) {
+        const { data: person } = await supabase
+          .from("people")
+          .select("full_name")
+          .eq("id", vehicle.person_id)
+          .single();
+        ownerName = person?.full_name || "—";
+        ownerType = "Pessoa";
+      }
+
+      if (vehicle.visitor_id) {
+        const { data: visitor } = await supabase
+          .from("visitors")
+          .select("full_name")
+          .eq("id", vehicle.visitor_id)
+          .single();
+        ownerName = visitor?.full_name || "—";
+        ownerType = "Visitante";
+      }
+
+      const { error: accessError } = await supabase.from("access_logs").insert({
+        created_by: user.id,
+        person_id: vehicle.person_id || null,
+        visitor_id: vehicle.visitor_id || null,
+        access_type: "entry",
+        method: "plate",
+        location_name: "Gemini",
+        notes: `Acesso por Gemini da placa ${plate}`
+      });
+
+      if (accessError) {
+        vehicleResult.innerHTML = `<div class="item">Erro ao registrar acesso: ${accessError.message}</div>`;
+        return;
+      }
+
+      await addHistory("Acesso por Gemini", `Entrada registrada automaticamente para a placa ${plate}.`);
+
+      vehicleResult.innerHTML = `
+        <div class="item">
+          <b>${vehicle.plate}</b><br>
+          Modelo: ${vehicle.model || "-"}<br>
+          Cor: ${vehicle.color || "-"}<br>
+          Tipo: ${vehicle.kind || "-"}<br>
+          Vinculado a: ${ownerName}<br>
+          Categoria: ${ownerType}<br>
+          <span class="badge">Entrada registrada</span>
+        </div>
+      `;
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+      await startCamera();
+    })();
+
+    window.captureAndSend = captureAndSend;
+    window.startCamera = startCamera;
+    window.logout = logout;
+  </script>
+</body>
+</html>
