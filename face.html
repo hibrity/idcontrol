@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Idcontrol • Reconhecimento Facial</title>
+
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+window.supabase = createClient(
+"https://zbxrpprwjrholrycwsqa.supabase.co",
+"sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+);
+</script>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#0f172a;
+color:white;
+}
+
+.wrap{
+max-width:900px;
+margin:auto;
+padding:20px;
+}
+
+.card{
+background:#1e293b;
+padding:20px;
+border-radius:12px;
+margin-bottom:16px;
+}
+
+video{
+width:100%;
+border-radius:10px;
+}
+
+.item{
+background:#0b1220;
+padding:12px;
+border-radius:8px;
+margin-top:10px;
+}
+
+.badge{
+display:inline-block;
+padding:4px 8px;
+border-radius:999px;
+background:#22c55e;
+color:black;
+font-weight:bold;
+font-size:12px;
+}
+
+.warning{
+background:#f59e0b;
+color:black;
+}
+
+button{
+padding:10px 12px;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer;
+}
+
+.primary{
+background:#22c55e;
+color:black;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+<div class="card">
+<h2>Reconhecimento Facial</h2>
+<p>Sistema automático de identificação.</p>
+
+<video id="video" autoplay muted></video>
+
+</div>
+
+<div class="card">
+<h3>Resultado</h3>
+<div id="result" class="item">
+Aguardando rosto...
+</div>
+</div>
+
+</div>
+
+<script>
+
+const video = document.getElementById("video")
+const result = document.getElementById("result")
+
+let labeledFaces = []
+
+async function loadModels(){
+
+await faceapi.nets.ssdMobilenetv1.loadFromUri(
+"https://cdn.jsdelivr.net/npm/face-api.js/weights"
+)
+
+await faceapi.nets.faceLandmark68Net.loadFromUri(
+"https://cdn.jsdelivr.net/npm/face-api.js/weights"
+)
+
+await faceapi.nets.faceRecognitionNet.loadFromUri(
+"https://cdn.jsdelivr.net/npm/face-api.js/weights"
+)
+
+}
+
+async function startCamera(){
+
+const stream = await navigator.mediaDevices.getUserMedia({
+video:true
+})
+
+video.srcObject = stream
+
+}
+
+async function loadFaces(){
+
+const {data} = await supabase
+.from("face_profiles")
+.select("*")
+
+labeledFaces = data.map(p=>({
+
+person_id:p.person_id,
+descriptor:new Float32Array(p.descriptor)
+
+}))
+
+}
+
+function distance(a,b){
+
+let sum = 0
+
+for(let i=0;i<a.length;i++){
+
+sum += Math.pow(a[i]-b[i],2)
+
+}
+
+return Math.sqrt(sum)
+
+}
+
+async function detectLoop(){
+
+setInterval(async()=>{
+
+const detections = await faceapi
+.detectSingleFace(video)
+.withFaceLandmarks()
+.withFaceDescriptor()
+
+if(!detections){
+
+result.innerHTML="Nenhum rosto detectado"
+
+return
+
+}
+
+const faceDescriptor = detections.descriptor
+
+let bestMatch=null
+let bestDistance=1
+
+labeledFaces.forEach(f=>{
+
+const d = distance(faceDescriptor,f.descriptor)
+
+if(d < bestDistance){
+
+bestDistance = d
+bestMatch = f
+
+}
+
+})
+
+if(bestMatch && bestDistance < 0.45){
+
+await registerAccess(bestMatch.person_id)
+
+result.innerHTML=`
+<b>Pessoa identificada</b><br>
+Distância: ${bestDistance.toFixed(2)}
+<span class="badge">Acesso liberado</span>
+`
+
+}else{
+
+result.innerHTML=`
+Rosto não reconhecido
+<span class="badge warning">Negado</span>
+`
+
+}
+
+},2000)
+
+}
+
+async function registerAccess(personId){
+
+const {data:userData} = await supabase.auth.getUser()
+
+await supabase
+.from("access_logs")
+.insert({
+
+person_id:personId,
+access_type:"entry",
+method:"face",
+location_name:"Face Recognition",
+created_by:userData.user.id
+
+})
+
+}
+
+async function init(){
+
+await loadModels()
+
+await startCamera()
+
+await loadFaces()
+
+detectLoop()
+
+}
+
+init()
+
+</script>
+
+</body>
+</html>
