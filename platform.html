@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Plataforma</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 18px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat {
+      background: #0b1220;
+      border-radius: 12px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 24px;
+    }
+
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    button, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      text-decoration: none;
+      font-size: 15px;
+    }
+
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 11px 12px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+      background: white;
+      color: black;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-top: 6px;
+      background: #22c55e;
+      color: black;
+    }
+
+    .warning {
+      background: #f59e0b;
+      color: black;
+    }
+
+    .danger-badge {
+      background: #ef4444;
+      color: white;
+    }
+
+    .clock-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 10px 14px;
+      background: #0b1220;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+      text-align: center;
+      font-weight: bold;
+    }
+
+    @media (max-width: 950px) {
+      .grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .grid-4 {
+        grid-template-columns: 1fr;
+      }
+
+      .title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Plataforma • Idcontrol</div>
+        <div class="subtitle">Painel global do Super Admin</div>
+      </div>
+
+      <div class="row">
+        <div id="clock" class="clock-box"></div>
+        <a class="btn ghost" href="./index.html">← Sistema</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resumo da plataforma</h3>
+      <div class="grid grid-4" id="platform_stats"></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Organizações</h3>
+        <div class="row">
+          <input id="new_org_name" placeholder="Nome da organização" />
+          <input id="new_org_document" placeholder="Documento (opcional)" />
+        </div>
+        <button class="primary" onclick="createOrganization()">Criar organização</button>
+        <div id="create_org_result"></div>
+        <div id="organizations_list"></div>
+      </div>
+
+      <div class="card">
+        <h3>Usuários da plataforma</h3>
+        <div id="organization_users_list"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Alertas abertos</h3>
+        <div id="alerts_list"></div>
+      </div>
+
+      <div class="card">
+        <h3>Últimos acessos globais</h3>
+        <div id="global_access_list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function isPlatformAdmin() {
+      const { data, error } = await supabase.rpc("is_platform_admin");
+
+      if (error) {
+        console.error("Erro ao verificar super admin:", error.message);
+        return false;
+      }
+
+      return data === true;
+    }
+
+    function startClock() {
+      const clock = document.getElementById("clock");
+
+      function updateClock() {
+        const now = new Date();
+        clock.textContent = now.toLocaleString("pt-BR");
+      }
+
+      updateClock();
+      setInterval(updateClock, 1000);
+    }
+
+    async function loadPlatformStats() {
+      const organizationsRes = await supabase.from("organizations").select("*", { count: "exact", head: true });
+      const orgUsersRes = await supabase.from("organization_users").select("*", { count: "exact", head: true });
+      const accessRes = await supabase.from("access_logs").select("*", { count: "exact", head: true });
+      const alertsRes = await supabase
+        .from("security_alerts")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "open");
+
+      document.getElementById("platform_stats").innerHTML = `
+        <div class="stat">
+          Organizações
+          <strong>${organizationsRes.count || 0}</strong>
+        </div>
+        <div class="stat">
+          Usuários vinculados
+          <strong>${orgUsersRes.count || 0}</strong>
+        </div>
+        <div class="stat">
+          Acessos globais
+          <strong>${accessRes.count || 0}</strong>
+        </div>
+        <div class="stat">
+          Alertas abertos
+          <strong>${alertsRes.count || 0}</strong>
+        </div>
+      `;
+    }
+
+    async function loadOrganizations() {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const list = document.getElementById("organizations_list");
+      list.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar organizações</div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        list.innerHTML = `<div class="item">Nenhuma organização cadastrada</div>`;
+        return;
+      }
+
+      data.forEach(org => {
+        list.innerHTML += `
+          <div class="item">
+            <b>${org.name}</b><br>
+            Documento: ${org.document || "-"}<br>
+            ID: ${org.id}<br>
+            Criado em: ${new Date(org.created_at).toLocaleString("pt-BR")}
+          </div>
+        `;
+      });
+    }
+
+    async function createOrganization() {
+      const user = await getUser();
+      const name = document.getElementById("new_org_name").value.trim();
+      const documentValue = document.getElementById("new_org_document").value.trim();
+      const box = document.getElementById("create_org_result");
+
+      if (!name) {
+        alert("Nome da organização obrigatório.");
+        return;
+      }
+
+      const { error } = await supabase.from("organizations").insert({
+        name,
+        document: documentValue || null,
+        created_by: user?.id || null
+      });
+
+      if (error) {
+        box.innerHTML = `<div class="item">Erro: ${error.message}</div>`;
+        return;
+      }
+
+      box.innerHTML = `<div class="item"><b>Organização criada com sucesso.</b></div>`;
+      document.getElementById("new_org_name").value = "";
+      document.getElementById("new_org_document").value = "";
+
+      await loadOrganizations();
+      await loadPlatformStats();
+    }
+
+    async function loadOrganizationUsers() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const list = document.getElementById("organization_users_list");
+      list.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar usuários da plataforma</div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        list.innerHTML = `<div class="item">Nenhum vínculo de usuário encontrado</div>`;
+        return;
+      }
+
+      const { data: orgs } = await supabase.from("organizations").select("id, name");
+      const orgMap = {};
+      (orgs || []).forEach(o => orgMap[o.id] = o.name);
+
+      data.forEach(u => {
+        list.innerHTML += `
+          <div class="item">
+            <b>${orgMap[u.organization_id] || "Organização"}</b><br>
+            User ID: ${u.user_id}<br>
+            Papel: ${u.role}<br>
+            Vinculado em: ${new Date(u.created_at).toLocaleString("pt-BR")}
+          </div>
+        `;
+      });
+    }
+
+    async function loadSecurityAlerts() {
+      const { data, error } = await supabase
+        .from("security_alerts")
+        .select("*")
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(12);
+
+      const list = document.getElementById("alerts_list");
+      list.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar alertas</div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        list.innerHTML = `<div class="item">Nenhum alerta aberto</div>`;
+        return;
+      }
+
+      data.forEach(alert => {
+        const badgeClass =
+          alert.severity === "high"
+            ? "danger-badge"
+            : alert.severity === "medium"
+            ? "warning"
+            : "";
+
+        list.innerHTML += `
+          <div class="item">
+            <b>${alert.title || "Alerta"}</b><br>
+            Tipo: ${alert.alert_type}<br>
+            Método: ${alert.source_method || "-"}<br>
+            ${alert.description || "-"}<br>
+            <span class="badge ${badgeClass}">${alert.severity}</span>
+          </div>
+        `;
+      });
+    }
+
+    async function loadGlobalAccess() {
+      const { data, error } = await supabase
+        .from("access_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(15);
+
+      const list = document.getElementById("global_access_list");
+      list.innerHTML = "";
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar acessos globais</div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        list.innerHTML = `<div class="item">Nenhum acesso encontrado</div>`;
+        return;
+      }
+
+      data.forEach(a => {
+        list.innerHTML += `
+          <div class="item">
+            <b>${a.access_type === "entry" ? "Entrada" : "Saída"}</b><br>
+            Método: ${a.method || "-"}<br>
+            Organização: ${a.organization_id || "-"}<br>
+            Local: ${a.location_name || "-"}<br>
+            Observações: ${a.notes || "-"}
+          </div>
+        `;
+      });
+    }
+
+    async function init() {
+      const admin = await isPlatformAdmin();
+
+      if (!admin) {
+        alert("Acesso restrito ao Super Admin.");
+        location.href = "./index.html";
+        return;
+      }
+
+      startClock();
+      await loadPlatformStats();
+      await loadOrganizations();
+      await loadOrganizationUsers();
+      await loadSecurityAlerts();
+      await loadGlobalAccess();
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+      await init();
+    })();
+
+    window.logout = logout;
+    window.createOrganization = createOrganization;
+  </script>
+</body>
+</html>
