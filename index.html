@@ -306,6 +306,7 @@
   <script>
     let qrScanner = null;
     let qrRunning = false;
+    let currentUserRole = null;
 
     function openPage(page) {
       document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
@@ -400,6 +401,110 @@
       return data.organization_id;
     }
 
+    async function getCurrentUserRole() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("role")
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error("Erro ao buscar role:", error.message);
+        return null;
+      }
+
+      currentUserRole = data.role;
+      return data.role;
+    }
+
+    function isAdmin() {
+      return currentUserRole === "admin";
+    }
+
+    function isPorteiro() {
+      return currentUserRole === "porteiro";
+    }
+
+    function isSeguranca() {
+      return currentUserRole === "seguranca";
+    }
+
+    function isGestor() {
+      return currentUserRole === "gestor";
+    }
+
+    function canManageRegisters() {
+      return currentUserRole === "admin" || currentUserRole === "gestor";
+    }
+
+    function canOperateAccess() {
+      return currentUserRole === "admin" || currentUserRole === "porteiro" || currentUserRole === "seguranca";
+    }
+
+    function applyRolePermissions() {
+      const buttons = [...document.querySelectorAll(".menu button")];
+
+      const peopleBtn = buttons.find(b => b.textContent.trim() === "Pessoas");
+      const visitorsBtn = buttons.find(b => b.textContent.trim() === "Visitantes");
+      const tagsBtn = buttons.find(b => b.textContent.trim() === "Tags");
+      const accessBtn = buttons.find(b => b.textContent.trim() === "Acessos");
+      const insideBtn = buttons.find(b => b.textContent.trim() === "Quem está dentro");
+      const qrBtn = buttons.find(b => b.textContent.trim() === "Leitor QR");
+
+      if (isPorteiro()) {
+        if (peopleBtn) peopleBtn.style.display = "none";
+        if (tagsBtn) tagsBtn.style.display = "none";
+      }
+
+      if (isSeguranca()) {
+        if (peopleBtn) peopleBtn.style.display = "none";
+        if (visitorsBtn) visitorsBtn.style.display = "none";
+        if (tagsBtn) tagsBtn.style.display = "none";
+      }
+
+      if (isGestor()) {
+        if (accessBtn) accessBtn.style.display = "none";
+        if (insideBtn) insideBtn.style.display = "none";
+        if (qrBtn) qrBtn.style.display = "none";
+      }
+
+      if (!canManageRegisters()) {
+        const peoplePage = document.getElementById("people");
+        const visitorsPage = document.getElementById("visitors");
+        const tagsPage = document.getElementById("tags");
+
+        if (peoplePage) {
+          const saveBtn = peoplePage.querySelector("button.primary");
+          if (saveBtn) saveBtn.style.display = "none";
+        }
+
+        if (visitorsPage && !isPorteiro()) {
+          const saveBtn = visitorsPage.querySelector("button.primary");
+          if (saveBtn) saveBtn.style.display = "none";
+        }
+
+        if (tagsPage) {
+          const saveBtn = tagsPage.querySelector("button.primary");
+          if (saveBtn) saveBtn.style.display = "none";
+        }
+      }
+
+      if (!canOperateAccess()) {
+        const accessPage = document.getElementById("access");
+        const qrPage = document.getElementById("qr");
+
+        if (accessPage) {
+          const registerBtn = accessPage.querySelector("button.primary");
+          if (registerBtn) registerBtn.style.display = "none";
+        }
+
+        if (qrPage) {
+          const registerBtn = qrPage.querySelector("button.primary");
+          if (registerBtn) registerBtn.style.display = "none";
+        }
+      }
+    }
+
     async function addHistory(title, description) {
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
@@ -414,6 +519,11 @@
     }
 
     async function savePerson() {
+      if (!canManageRegisters()) {
+        alert("Você não tem permissão para cadastrar pessoas.");
+        return;
+      }
+
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
       if (!user || !organizationId) return;
@@ -452,6 +562,11 @@
     }
 
     async function saveVisitor() {
+      if (!(canManageRegisters() || isPorteiro())) {
+        alert("Você não tem permissão para cadastrar visitantes.");
+        return;
+      }
+
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
       if (!user || !organizationId) return;
@@ -491,6 +606,11 @@
     }
 
     async function saveTag() {
+      if (!canManageRegisters()) {
+        alert("Você não tem permissão para cadastrar tags.");
+        return;
+      }
+
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
       if (!user || !organizationId) return;
@@ -540,6 +660,11 @@
     }
 
     async function saveAccess() {
+      if (!canOperateAccess()) {
+        alert("Você não tem permissão para registrar acessos.");
+        return;
+      }
+
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
       if (!user || !organizationId) return;
@@ -594,6 +719,11 @@
     }
 
     async function registerAccessByTag(tagCode) {
+      if (!canOperateAccess()) {
+        alert("Você não tem permissão para operar o leitor QR.");
+        return;
+      }
+
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
       if (!user || !organizationId) return;
@@ -637,6 +767,11 @@
     }
 
     async function submitManualTag() {
+      if (!canOperateAccess()) {
+        alert("Você não tem permissão para registrar acessos por código.");
+        return;
+      }
+
       const code = document.getElementById("manual_tag_code").value.trim();
 
       if (!code) {
@@ -945,6 +1080,9 @@
     async function init() {
       document.getElementById("login").style.display = "none";
       document.getElementById("app").style.display = "block";
+
+      await getCurrentUserRole();
+      applyRolePermissions();
 
       await loadPeople();
       await loadVisitors();
