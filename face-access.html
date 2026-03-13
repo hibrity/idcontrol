@@ -13,6 +13,8 @@
     );
   </script>
 
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
   <style>
     body{font-family:Arial;background:#0f172a;color:#fff;margin:0}
     .wrap{max-width:900px;margin:auto;padding:20px}
@@ -23,6 +25,9 @@
     .primary{background:#22c55e;color:#000}
     .ghost{background:#334155;color:#fff}
     .item{background:#0b1220;padding:12px;border-radius:10px;margin-top:10px}
+    .badge{display:inline-block;margin-top:6px;padding:4px 8px;border-radius:999px;background:#22c55e;color:#000;font-size:12px;font-weight:bold}
+    .warn{background:#f59e0b;color:#000}
+    .bad{background:#ef4444;color:#fff}
   </style>
 </head>
 <body>
@@ -34,10 +39,11 @@
 
     <div class="card">
       <h3>Câmera</h3>
-      <video id="video" autoplay playsinline></video>
+      <p id="status" class="item">Inicializando reconhecimento automático...</p>
+      <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas"></canvas>
       <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="primary" onclick="captureForAccess()">Capturar para acesso</button>
+        <button class="primary" onclick="captureForAccess()">Testar manualmente</button>
         <button class="ghost" onclick="startCamera()">Reiniciar câmera</button>
       </div>
     </div>
@@ -52,7 +58,21 @@
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const result = document.getElementById("result");
+    const statusBox = document.getElementById("status");
+
     let stream = null;
+    let autoRecognitionStarted = false;
+    let processingFace = false;
+    let lastRecognition = 0;
+    const COOLDOWN_MS = 5000;
+    const LOOP_MS = 1000;
+
+    async function loadModels() {
+      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    }
 
     async function getUser() {
       const { data } = await supabase.auth.getUser();
@@ -70,53 +90,238 @@
 
     async function startCamera() {
       if (stream) stream.getTracks().forEach(t => t.stop());
+
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
         audio: false
       });
+
       video.srcObject = stream;
+      statusBox.innerHTML = "Câmera ativa. Aguardando rosto...";
     }
 
-    async function captureForAccess() {
-      const user = await getUser();
+    function euclideanDistance(a, b) {
+      let sum = 0;
+      for (let i = 0; i < a.length; i++) {
+        const diff = a[i] - b[i];
+        sum += diff * diff;
+      }
+      return Math.sqrt(sum);
+    }
 
+    function classifyDistance(distance) {
+      if (distance <= 0.45) return "high";
+      if (distance <= 0.60) return "medium";
+      return "low";
+    }
+
+    async function saveAttempt(userId, imageBase64, bestMatch, bestDistance, recognized, notes) {
+      await supabase.from("face_attempts").insert({
+        created_by: userId,
+        person_id: bestMatch?.person_id || null,
+        visitor_id: bestMatch?.visitor_id || null,
+        image_base64: imageBase64,
+        best_distance: Number.isFinite(bestDistance) ? bestDistance : null,
+        recognized,
+        notes
+      });
+    }
+
+    async function captureFrameBase64() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageBase64 = canvas.toDataURL("image/jpeg", 0.8);
+      return canvas.toDataURL("image/jpeg", 0.8);
+    }
+
+    async function processDetectedFace(descriptor, imageBase64) {
+      const user = await getUser();
 
       const { data: faces, error } = await supabase
         .from("face_profiles")
-        .select("id,person_id,image_base64")
-        .limit(1);
+        .select("id, person_id, visitor_id, descriptor, label, active")
+        .eq("active", true);
 
       if (error) {
         result.innerHTML = `Erro ao consultar faces: ${error.message}`;
+        statusBox.innerHTML = "Erro ao consultar base facial.";
         return;
       }
 
       if (!faces || faces.length === 0) {
         result.innerHTML = "Nenhum rosto cadastrado ainda.";
+        statusBox.innerHTML = "Base facial vazia.";
         return;
       }
 
-      result.innerHTML = `
-        Captura realizada.<br>
-        Próximo passo: comparar a imagem atual com os rostos cadastrados.
-      `;
+      let bestMatch = null;
+      let bestDistance = Infinity;
+
+      const currentDescriptor = Array.from(descriptor);
+
+      for (const face of faces) {
+        if (!face.descriptor || !Array.isArray(face.descriptor)) continue;
+        const distance = euclideanDistance(currentDescriptor, face.descriptor);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestMatch = face;
+        }
+      }
+
+      const confidence = classifyDistance(bestDistance);
+
+      if (!bestMatch || confidence === "low") {
+        await saveAttempt(
+          user.id,
+          imageBase64,
+          bestMatch,
+          bestDistance,
+          false,
+          `Falha facial. Distância: ${bestDistance.toFixed(4)}`
+        );
+
+        await supabase.from("history").insert({
+          title: "Falha no acesso facial",
+          description: `Nenhum rosto reconhecido. Distância: ${bestDistance.toFixed(4)}`,
+          created_by: user.id
+        });
+
+        result.innerHTML = `
+          <b>Rosto não reconhecido</b><br>
+          Distância: ${bestDistance.toFixed(4)}<br>
+          <span class="badge bad">Falha</span>
+        `;
+        statusBox.innerHTML = "Rosto detectado, mas não reconhecido.";
+        return;
+      }
+
+      let ownerName = "Pessoa reconhecida";
+      let ownerType = "Pessoa";
+
+      if (bestMatch.person_id) {
+        const { data: person } = await supabase
+          .from("people")
+          .select("full_name")
+          .eq("id", bestMatch.person_id)
+          .single();
+        ownerName = person?.full_name || ownerName;
+        ownerType = "Pessoa";
+      }
+
+      if (bestMatch.visitor_id) {
+        const { data: visitor } = await supabase
+          .from("visitors")
+          .select("full_name")
+          .eq("id", bestMatch.visitor_id)
+          .single();
+        ownerName = visitor?.full_name || "Visitante reconhecido";
+        ownerType = "Visitante";
+      }
+
+      await supabase.from("access_logs").insert({
+        created_by: user.id,
+        person_id: bestMatch.person_id || null,
+        visitor_id: bestMatch.visitor_id || null,
+        access_type: "entry",
+        method: "face",
+        location_name: "Reconhecimento Facial Automático",
+        notes: `Acesso facial automático. Distância: ${bestDistance.toFixed(4)} (${confidence})`
+      });
+
+      await saveAttempt(
+        user.id,
+        imageBase64,
+        bestMatch,
+        bestDistance,
+        true,
+        `Reconhecido com confiança ${confidence}`
+      );
 
       await supabase.from("history").insert({
-        title: "Tentativa de acesso facial",
-        description: "Captura facial realizada para comparação.",
+        title: "Acesso facial automático",
+        description: `${ownerName} reconhecido(a) automaticamente por facial com confiança ${confidence}.`,
         created_by: user.id
       });
+
+      result.innerHTML = `
+        <b>${ownerName}</b><br>
+        Tipo: ${ownerType}<br>
+        Distância: ${bestDistance.toFixed(4)}<br>
+        ${bestMatch.label ? `Perfil: ${bestMatch.label}<br>` : ""}
+        <span class="badge ${confidence === "medium" ? "warn" : ""}">
+          ${confidence === "high" ? "Reconhecimento forte" : "Reconhecimento médio"}
+        </span>
+      `;
+      statusBox.innerHTML = "Acesso facial registrado automaticamente.";
+      lastRecognition = Date.now();
+    }
+
+    async function detectAndProcessFace() {
+      if (processingFace) return;
+      if (!video.videoWidth || !video.videoHeight) return;
+      if (Date.now() - lastRecognition < COOLDOWN_MS) return;
+
+      processingFace = true;
+
+      try {
+        const detection = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (!detection) {
+          statusBox.innerHTML = "Aguardando rosto...";
+          processingFace = false;
+          return;
+        }
+
+        statusBox.innerHTML = "Rosto detectado. Comparando...";
+        const imageBase64 = await captureFrameBase64();
+        await processDetectedFace(detection.descriptor, imageBase64);
+      } catch (error) {
+        statusBox.innerHTML = "Erro durante o reconhecimento facial.";
+      } finally {
+        processingFace = false;
+      }
+    }
+
+    function startAutoRecognition() {
+      if (autoRecognitionStarted) return;
+      autoRecognitionStarted = true;
+
+      setInterval(async () => {
+        await detectAndProcessFace();
+      }, LOOP_MS);
+    }
+
+    async function captureForAccess() {
+      if (!video.videoWidth || !video.videoHeight) {
+        result.innerHTML = "A câmera ainda não está pronta.";
+        return;
+      }
+
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        result.innerHTML = "Nenhum rosto detectado.";
+        return;
+      }
+
+      const imageBase64 = await captureFrameBase64();
+      await processDetectedFace(detection.descriptor, imageBase64);
     }
 
     (async () => {
       const ok = await ensureSession();
       if (!ok) return;
+
+      await loadModels();
       await startCamera();
+      startAutoRecognition();
     })();
 
     window.captureForAccess = captureForAccess;
