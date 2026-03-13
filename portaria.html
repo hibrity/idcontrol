@@ -531,6 +531,72 @@
       `;
     }
 
+    async function createSecurityAlert({
+      personId = null,
+      visitorId = null,
+      vehicleId = null,
+      alertType,
+      severity = "medium",
+      title,
+      description,
+      sourceMethod,
+      rawInput = null,
+      needsReview = true
+    }) {
+      const user = await getUser();
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) {
+        console.error("organization_id não encontrado.");
+        return null;
+      }
+
+      const { data, error } = await supabase.rpc("create_security_alert", {
+        p_organization_id: organizationId,
+        p_created_by: user?.id || null,
+        p_person_id: personId,
+        p_visitor_id: visitorId,
+        p_vehicle_id: vehicleId,
+        p_alert_type: alertType,
+        p_severity: severity,
+        p_title: title,
+        p_description: description,
+        p_source_method: sourceMethod,
+        p_raw_input: rawInput,
+        p_needs_review: needsReview
+      });
+
+      if (error) {
+        console.error("Erro ao criar alerta:", error.message);
+        return null;
+      }
+
+      return data;
+    }
+
+    async function countRecentFailures(method, rawInput, minutes = 10) {
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) {
+        console.error("organization_id não encontrado.");
+        return 0;
+      }
+
+      const { data, error } = await supabase.rpc("count_recent_access_failures", {
+        p_organization_id: organizationId,
+        p_method: method,
+        p_raw_input: rawInput,
+        p_minutes: minutes
+      });
+
+      if (error) {
+        console.error("Erro ao contar falhas recentes:", error.message);
+        return 0;
+      }
+
+      return data || 0;
+    }
+
     async function addHistory(title, description) {
       const user = await getUser();
       const organizationId = await getCurrentOrganizationId();
@@ -740,6 +806,17 @@
             <span class="badge danger-badge">Falha</span>
           </div>
         `;
+
+        await createSecurityAlert({
+          alertType: "invalid_tag",
+          severity: "medium",
+          title: "Código inválido",
+          description: `Código/tag não encontrado: ${tagCode}`,
+          sourceMethod: "tag",
+          rawInput: tagCode,
+          needsReview: true
+        });
+
         showErrorResult("Acesso negado", tagCode, "Código não encontrado");
         return;
       }
