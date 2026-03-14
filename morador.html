@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Morador</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .card {
+      background: #1e293b;
+      padding: 18px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr 1fr;
+    }
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+      margin-top: 10px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .row > * {
+      flex: 1;
+      min-width: 160px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 11px 12px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+      background: white;
+      color: black;
+      font-size: 15px;
+    }
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+    button, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      text-decoration: none;
+      font-size: 15px;
+    }
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-top: 6px;
+      background: #22c55e;
+      color: black;
+    }
+    .warning {
+      background: #f59e0b;
+      color: black;
+    }
+    .danger-badge {
+      background: #ef4444;
+      color: white;
+    }
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    .stat {
+      background: #0b1220;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .stat strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+    }
+    .stats {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .stats {
+        grid-template-columns: 1fr;
+      }
+      .title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Modo Morador</div>
+        <div class="subtitle">Agende visitas, bloqueie pessoas e controle seu acesso pelo celular.</div>
+      </div>
+      <div class="row" style="max-width:340px;width:100%;">
+        <a class="btn ghost" href="./index.html">← Sistema</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Meu perfil</h3>
+      <div id="resident_info" class="item">Carregando dados do morador...</div>
+    </div>
+
+    <div class="card">
+      <h3>Resumo</h3>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h3>Agendar visita</h3>
+
+          <input id="visit_name" placeholder="Nome do visitante" />
+          <input id="visit_document" placeholder="Documento" />
+          <input id="visit_phone" placeholder="Telefone" />
+
+          <div class="row">
+            <input id="visit_date" type="date" />
+            <input id="visit_time" type="time" />
+          </div>
+
+          <input id="visit_purpose" placeholder="Motivo da visita" />
+          <textarea id="visit_notes" placeholder="Observações"></textarea>
+
+          <button class="primary" onclick="createVisitSchedule()">Agendar visita</button>
+          <div id="visit_result"></div>
+        </div>
+
+        <div class="card">
+          <h3>Bloquear visitante</h3>
+
+          <input id="block_name" placeholder="Nome da pessoa" />
+          <input id="block_document" placeholder="Documento" />
+          <input id="block_phone" placeholder="Telefone" />
+          <textarea id="block_reason" placeholder="Motivo do bloqueio"></textarea>
+
+          <button class="danger" onclick="createVisitorBlock()">Bloquear entrada</button>
+          <div id="block_result"></div>
+        </div>
+
+        <div class="card">
+          <h3>Abrir portão</h3>
+          <p class="muted">Opcional. Configure o IP do Shelly no código.</p>
+          <button class="primary" onclick="openGate()">Abrir portão</button>
+          <div id="gate_result"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3>Próximas visitas</h3>
+          <div id="visits_list"></div>
+        </div>
+
+        <div class="card">
+          <h3>Visitantes bloqueados</h3>
+          <div id="blocks_list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentResident = null;
+
+    const GATE_CONFIG = {
+      enabled: false,
+      shellyIp: "192.168.1.70",
+      endpoint: "/relay/0?turn=on"
+    };
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) return null;
+      return data.organization_id;
+    }
+
+    async function loadResidentProfile() {
+      const user = await getUser();
+
+      const { data, error } = await supabase
+        .from("resident_units")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .single();
+
+      const box = document.getElementById("resident_info");
+
+      if (error || !data) {
+        box.innerHTML = `
+          <b>Seu usuário ainda não está vinculado a uma unidade.</b><br>
+          Peça ao administrador para criar seu vínculo em <code>resident_units</code>.
+        `;
+        return;
+      }
+
+      currentResident = data;
+
+      box.innerHTML = `
+        <b>${data.resident_name}</b><br>
+        Unidade: ${data.unit_code}<br>
+        Telefone: ${data.phone || "-"}<br>
+        <span class="badge">Morador ativo</span>
+      `;
+    }
+
+    function generateVisitCode() {
+      const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+      return `VIS-${Date.now().toString().slice(-6)}-${randomPart}`;
+    }
+
+    async function createVisitSchedule() {
+      const result = document.getElementById("visit_result");
+      const organizationId = await getCurrentOrganizationId();
+      const user = await getUser();
+
+      if (!currentResident || !organizationId) {
+        result.innerHTML = `<div class="item">Morador não vinculado ou organização não encontrada.</div>`;
+        return;
+      }
+
+      const visitorName = document.getElementById("visit_name").value.trim();
+      const visitorDocument = document.getElementById("visit_document").value.trim();
+      const visitorPhone = document.getElementById("visit_phone").value.trim();
+      const scheduledDate = document.getElementById("visit_date").value;
+      const scheduledTime = document.getElementById("visit_time").value;
+      const purpose = document.getElementById("visit_purpose").value.trim();
+      const notes = document.getElementById("visit_notes").value.trim();
+
+      if (!visitorName || !scheduledDate) {
+        result.innerHTML = `<div class="item">Preencha pelo menos nome e data.</div>`;
+        return;
+      }
+
+      const validUntil = scheduledTime
+        ? `${scheduledDate}T${scheduledTime}:00`
+        : `${scheduledDate}T23:59:00`;
+
+      const qrCode = generateVisitCode();
+
+      const { error } = await supabase.from("visit_schedules").insert({
+        organization_id: organizationId,
+        resident_unit_id: currentResident.id,
+        created_by: user.id,
+        visitor_name: visitorName,
+        visitor_document: visitorDocument || null,
+        visitor_phone: visitorPhone || null,
+        purpose: purpose || null,
+        scheduled_date: scheduledDate,
+        scheduled_time: scheduledTime || null,
+        valid_until: validUntil,
+        status: "scheduled",
+        qr_code: qrCode,
+        notes: notes || null
+      });
+
+      if (error) {
+        result.innerHTML = `<div class="item">Erro ao agendar: ${error.message}</div>`;
+        return;
+      }
+
+      document.getElementById("visit_name").value = "";
+      document.getElementById("visit_document").value = "";
+      document.getElementById("visit_phone").value = "";
+      document.getElementById("visit_date").value = "";
+      document.getElementById("visit_time").value = "";
+      document.getElementById("visit_purpose").value = "";
+      document.getElementById("visit_notes").value = "";
+
+      result.innerHTML = `
+        <div class="item">
+          <b>Visita agendada com sucesso.</b><br>
+          Código temporário: ${qrCode}
+        </div>
+      `;
+
+      await loadVisitSchedules();
+      await loadStats();
+    }
+
+    async function createVisitorBlock() {
+      const result = document.getElementById("block_result");
+      const organizationId = await getCurrentOrganizationId();
+      const user = await getUser();
+
+      if (!currentResident || !organizationId) {
+        result.innerHTML = `<div class="item">Morador não vinculado ou organização não encontrada.</div>`;
+        return;
+      }
+
+      const visitorName = document.getElementById("block_name").value.trim();
+      const visitorDocument = document.getElementById("block_document").value.trim();
+      const visitorPhone = document.getElementById("block_phone").value.trim();
+      const reason = document.getElementById("block_reason").value.trim();
+
+      if (!visitorName) {
+        result.innerHTML = `<div class="item">Informe o nome da pessoa a ser bloqueada.</div>`;
+        return;
+      }
+
+      const { error } = await supabase.from("visitor_blocks").insert({
+        organization_id: organizationId,
+        resident_unit_id: currentResident.id,
+        created_by: user.id,
+        visitor_name: visitorName,
+        visitor_document: visitorDocument || null,
+        visitor_phone: visitorPhone || null,
+        reason: reason || null,
+        active: true
+      });
+
+      if (error) {
+        result.innerHTML = `<div class="item">Erro ao bloquear: ${error.message}</div>`;
+        return;
+      }
+
+      document.getElementById("block_name").value = "";
+      document.getElementById("block_document").value = "";
+      document.getElementById("block_phone").value = "";
+      document.getElementById("block_reason").value = "";
+
+      result.innerHTML = `<div class="item"><b>Visitante bloqueado com sucesso.</b></div>`;
+
+      await loadVisitorBlocks();
+      await loadStats();
+    }
+
+    async function cancelVisitSchedule(id) {
+      const ok = confirm("Cancelar esta visita?");
+      if (!ok) return;
+
+      const { error } = await supabase
+        .from("visit_schedules")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await loadVisitSchedules();
+      await loadStats();
+    }
+
+    async function unblockVisitor(id) {
+      const ok = confirm("Remover bloqueio deste visitante?");
+      if (!ok) return;
+
+      const { error } = await supabase
+        .from("visitor_blocks")
+        .update({ active: false })
+        .eq("id", id);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await loadVisitorBlocks();
+      await loadStats();
+    }
+
+    async function loadVisitSchedules() {
+      const box = document.getElementById("visits_list");
+      box.innerHTML = "";
+
+      if (!currentResident) {
+        box.innerHTML = `<div class="item">Morador não vinculado.</div>`;
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("visit_schedules")
+        .select("*")
+        .eq("resident_unit_id", currentResident.id)
+        .order("scheduled_date", { ascending: true })
+        .order("scheduled_time", { ascending: true });
+
+      if (error) {
+        box.innerHTML = `<div class="item">Erro ao carregar visitas.</div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        box.innerHTML = `<div class="item">Nenhuma visita agendada.</div>`;
+        return;
+      }
+
+      data.forEach(v => {
+        const badgeClass =
+          v.status === "cancelled" ? "danger-badge" :
+          v.status === "checked_in" ? "" :
+          "warning";
+
+        box.innerHTML += `
+          <div class="item">
+            <b>${v.visitor_name}</b><br>
+            Documento: ${v.visitor_document || "-"}<br>
+            Data: ${v.scheduled_date}<br>
+            Hora: ${v.scheduled_time || "-"}<br>
+            Motivo: ${v.purpose || "-"}<br>
+            Código: ${v.qr_code || "-"}<br>
+            <span class="badge ${badgeClass}">${v.status}</span>
+            <div class="row" style="margin-top:10px;">
+              ${v.status === "scheduled" ? `<button class="danger" onclick="cancelVisitSchedule('${v.id}')">Cancelar</button>` : ""}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    async function loadVisitorBlocks() {
+      const box = document.getElementById("blocks_list");
+      box.innerHTML = "";
+
+      if (!currentResident) {
+        box.innerHTML = `<div class="item">Morador não vinculado.</div>`;
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("visitor_blocks")
+        .select("*")
+        .eq("resident_unit_id", currentResident.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        box.innerHTML = `<div class="item">Erro ao carregar bloqueios.</div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        box.innerHTML = `<div class="item">Nenhum visitante bloqueado.</div>`;
+        return;
+      }
+
+      data.forEach(v => {
+        box.innerHTML += `
+          <div class="item">
+            <b>${v.visitor_name}</b><br>
+            Documento: ${v.visitor_document || "-"}<br>
+            Telefone: ${v.visitor_phone || "-"}<br>
+            Motivo: ${v.reason || "-"}<br>
+            <span class="badge ${v.active ? "danger-badge" : ""}">${v.active ? "bloqueado" : "inativo"}</span>
+            <div class="row" style="margin-top:10px;">
+              ${v.active ? `<button class="ghost" onclick="unblockVisitor('${v.id}')">Desbloquear</button>` : ""}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    async function loadStats() {
+      const box = document.getElementById("stats");
+
+      if (!currentResident) {
+        box.innerHTML = `
+          <div class="stat">Visitas<strong>0</strong></div>
+          <div class="stat">Bloqueios<strong>0</strong></div>
+          <div class="stat">Ativos hoje<strong>0</strong></div>
+        `;
+        return;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      const visitsRes = await supabase
+        .from("visit_schedules")
+        .select("*", { count: "exact", head: true })
+        .eq("resident_unit_id", currentResident.id);
+
+      const blocksRes = await supabase
+        .from("visitor_blocks")
+        .select("*", { count: "exact", head: true })
+        .eq("resident_unit_id", currentResident.id)
+        .eq("active", true);
+
+      const todayRes = await supabase
+        .from("visit_schedules")
+        .select("*", { count: "exact", head: true })
+        .eq("resident_unit_id", currentResident.id)
+        .eq("scheduled_date", today)
+        .eq("status", "scheduled");
+
+      box.innerHTML = `
+        <div class="stat">
+          Visitas cadastradas
+          <strong>${visitsRes.count || 0}</strong>
+        </div>
+        <div class="stat">
+          Visitantes bloqueados
+          <strong>${blocksRes.count || 0}</strong>
+        </div>
+        <div class="stat">
+          Visitas de hoje
+          <strong>${todayRes.count || 0}</strong>
+        </div>
+      `;
+    }
+
+    async function openGate() {
+      const box = document.getElementById("gate_result");
+
+      if (!GATE_CONFIG.enabled) {
+        box.innerHTML = `<div class="item">Abra o código e ative o Shelly em GATE_CONFIG.</div>`;
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://${GATE_CONFIG.shellyIp}${GATE_CONFIG.endpoint}`, {
+          method: "GET"
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        box.innerHTML = `<div class="item"><b>Portão acionado com sucesso.</b></div>`;
+      } catch (error) {
+        box.innerHTML = `<div class="item">Falha ao acionar o portão.</div>`;
+      }
+    }
+
+    async function init() {
+      const ok = await ensureSession();
+      if (!ok) return;
+
+      await loadResidentProfile();
+      await loadVisitSchedules();
+      await loadVisitorBlocks();
+      await loadStats();
+    }
+
+    init();
+
+    window.logout = logout;
+    window.createVisitSchedule = createVisitSchedule;
+    window.createVisitorBlock = createVisitorBlock;
+    window.cancelVisitSchedule = cancelVisitSchedule;
+    window.unblockVisitor = unblockVisitor;
+    window.openGate = openGate;
+  </script>
+</body>
+</html>
