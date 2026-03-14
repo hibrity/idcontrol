@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Idcontrol • OCR com Gemini</title>
+  <title>Idcontrol • OCR de Placas</title>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -13,28 +13,130 @@
     );
   </script>
 
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
-    .topbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
-    .title { font-size: 24px; font-weight: bold; }
-    .card { background: #1e293b; padding: 20px; border-radius: 12px; margin-bottom: 16px; }
-    .item { background: #0b1220; padding: 12px; border-radius: 10px; margin-top: 10px; border: 1px solid rgba(255,255,255,.06); }
-    video { width: 100%; border-radius: 10px; background: black; }
-    canvas { display: none; }
-    button, a.btn {
-      display: inline-block; padding: 10px 12px; border: none; border-radius: 8px;
-      font-weight: bold; text-decoration: none; cursor: pointer;
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
     }
-    .primary { background: #22c55e; color: black; }
-    .ghost { background: #334155; color: white; }
-    .danger { background: #ef4444; color: white; }
-    .muted { color: #cbd5e1; font-size: 14px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    video, img {
+      width: 100%;
+      border-radius: 10px;
+      background: black;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    button, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+      min-height: 46px;
+    }
+
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .badge {
-      display:inline-block; margin-top:6px; padding:4px 8px; border-radius:999px;
-      background:#22c55e; color:black; font-size:12px; font-weight:bold;
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      color: black;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .warning {
+      background: #f59e0b;
+      color: black;
+    }
+
+    .danger-badge {
+      background: #ef4444;
+      color: white;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -42,43 +144,61 @@
   <div class="wrap">
     <div class="topbar">
       <div>
-        <div class="title">OCR com Gemini</div>
-        <div class="muted">Capture a placa e deixe a IA identificar o texto.</div>
+        <div class="title">OCR de Placas</div>
+        <div class="muted">Leitura local de placas com câmera configurada para OCR.</div>
       </div>
+
       <div class="row">
         <a class="btn ghost" href="./index.html">← Voltar</a>
+        <a class="btn ghost" href="./cameras.html">Câmeras</a>
         <button class="danger" onclick="logout()">Sair</button>
       </div>
     </div>
 
     <div class="card">
-      <h3>Câmera</h3>
-      <video id="video" autoplay playsinline></video>
-      <canvas id="canvas"></canvas>
-
-      <div class="row" style="margin-top: 12px;">
-        <button class="primary" onclick="captureAndSend()">Capturar com Gemini</button>
-        <button class="ghost" onclick="startCamera()">Reiniciar câmera</button>
+      <h3>Fonte da câmera OCR</h3>
+      <div id="camera_info" class="item">Carregando configuração de câmera...</div>
+      <div class="row" style="margin-top: 10px;">
+        <button class="ghost" onclick="loadPreferredOcrCamera()">Recarregar câmera OCR</button>
+        <button class="ghost" onclick="startBrowserFallbackCamera()">Usar câmera local</button>
       </div>
     </div>
 
     <div class="card">
-      <h3>Resposta da IA</h3>
-      <div id="ai_result" class="item">Nenhuma leitura ainda.</div>
+      <h3>Captura</h3>
+
+      <video id="video" autoplay playsinline muted></video>
+      <img id="snapshot_image" alt="Snapshot OCR" style="display:none;" />
+      <canvas id="canvas"></canvas>
+
+      <div class="row" style="margin-top: 12px;">
+        <button class="primary" onclick="captureAndRead()">Capturar placa</button>
+        <button class="ghost" onclick="refreshIpSnapshot()">Atualizar snapshot IP</button>
+        <button class="ghost" onclick="startBrowserFallbackCamera()">Reiniciar câmera local</button>
+      </div>
     </div>
 
     <div class="card">
-      <h3>Veículo localizado</h3>
-      <div id="vehicle_result" class="item">Nenhuma busca ainda.</div>
+      <h3>Resultado OCR</h3>
+      <div id="ocr_result" class="item">Nenhuma leitura ainda.</div>
+    </div>
+
+    <div class="card">
+      <h3>Resultado do veículo</h3>
+      <div id="vehicle_result" class="item">Nenhuma placa processada ainda.</div>
     </div>
   </div>
 
   <script>
     const video = document.getElementById("video");
+    const snapshotImage = document.getElementById("snapshot_image");
     const canvas = document.getElementById("canvas");
-    const aiResult = document.getElementById("ai_result");
+    const ocrResult = document.getElementById("ocr_result");
     const vehicleResult = document.getElementById("vehicle_result");
+    const cameraInfo = document.getElementById("camera_info");
+
     let cameraStream = null;
+    let currentCameraConfig = null;
 
     function normalizePlate(v) {
       return (v || "")
@@ -88,9 +208,40 @@
         .trim();
     }
 
+    function extractPlate(text) {
+      const cleaned = normalizePlate(text);
+
+      const patterns = [
+        /[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g,
+        /[A-Z]{3}[0-9]{4}/g
+      ];
+
+      for (const pattern of patterns) {
+        const match = cleaned.match(pattern);
+        if (match && match[0]) return match[0];
+      }
+
+      return null;
+    }
+
     async function getUser() {
       const { data } = await supabase.auth.getUser();
       return data.user;
+    }
+
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error("Erro ao buscar organization_id:", error.message);
+        return null;
+      }
+
+      return data.organization_id;
     }
 
     async function ensureSession() {
@@ -110,25 +261,34 @@
 
     async function addHistory(title, description) {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
 
       await supabase.from("history").insert({
         title,
         description,
-        created_by: user.id
+        created_by: user.id,
+        organization_id: organizationId
       });
     }
 
-    async function startCamera() {
-      await stopCamera();
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false
-        });
-        video.srcObject = cameraStream;
-      } catch (err) {
-        alert("Erro ao acessar câmera/webcam.");
+    async function addPlateLog({ vehicleId, plate, accessType, result, notes }) {
+      const user = await getUser();
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
+
+      const { error } = await supabase.from("plate_logs").insert({
+        created_by: user.id,
+        organization_id: organizationId,
+        vehicle_id: vehicleId || null,
+        plate,
+        access_type: accessType,
+        result: result || "matched",
+        notes: notes || null
+      });
+
+      if (error) {
+        console.log("plate_logs indisponível:", error.message);
       }
     }
 
@@ -137,66 +297,209 @@
         cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
       }
+      video.srcObject = null;
     }
 
-    async function captureAndSend() {
-      if (!video.videoWidth || !video.videoHeight) {
-        alert("A câmera ainda não está pronta.");
+    async function startBrowserFallbackCamera(deviceId = null) {
+      await stopCamera();
+      currentCameraConfig = {
+        camera_type: "browser",
+        device_id: deviceId || null,
+        name: "Câmera local"
+      };
+
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId
+            ? { deviceId: { exact: deviceId } }
+            : { facingMode: "environment" },
+          audio: false
+        });
+
+        snapshotImage.style.display = "none";
+        video.style.display = "block";
+        video.srcObject = cameraStream;
+
+        cameraInfo.innerHTML = `
+          <b>${currentCameraConfig.name}</b><br>
+          Tipo: navegador<br>
+          Status: ativa
+        `;
+      } catch (err) {
+        cameraInfo.innerHTML = `<div class="item">Erro ao acessar câmera local.</div>`;
+      }
+    }
+
+    async function loadPreferredOcrCamera() {
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) {
+        cameraInfo.innerHTML = `<div class="item">Organização não encontrada.</div>`;
         return;
       }
 
+      const { data, error } = await supabase
+        .from("cameras")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("purpose", "ocr")
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        cameraInfo.innerHTML = `<div class="item">Erro ao buscar câmera OCR.</div>`;
+        return;
+      }
+
+      if (!data) {
+        cameraInfo.innerHTML = `
+          <b>Nenhuma câmera OCR cadastrada</b><br>
+          O sistema vai usar câmera local como fallback.
+        `;
+        await startBrowserFallbackCamera();
+        return;
+      }
+
+      currentCameraConfig = data;
+
+      if (data.camera_type === "browser") {
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: navegador<br>
+          Finalidade: ${data.purpose || "-"}<br>
+          Device ID: ${data.device_id || "-"}
+        `;
+        await startBrowserFallbackCamera(data.device_id || null);
+        return;
+      }
+
+      if (data.camera_type === "ip") {
+        await stopCamera();
+        video.style.display = "none";
+        snapshotImage.style.display = "block";
+
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: IP<br>
+          Finalidade: ${data.purpose || "-"}<br>
+          Snapshot: ${data.snapshot_url || "-"}
+        `;
+
+        await refreshIpSnapshot();
+        return;
+      }
+
+      cameraInfo.innerHTML = `<div class="item">Tipo de câmera não suportado.</div>`;
+    }
+
+    async function refreshIpSnapshot() {
+      if (!currentCameraConfig || currentCameraConfig.camera_type !== "ip") {
+        return;
+      }
+
+      if (!currentCameraConfig.snapshot_url) {
+        cameraInfo.innerHTML = `<div class="item">A câmera IP não possui snapshot_url.</div>`;
+        return;
+      }
+
+      snapshotImage.src = `${currentCameraConfig.snapshot_url}${currentCameraConfig.snapshot_url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      snapshotImage.style.display = "block";
+      video.style.display = "none";
+    }
+
+    async function captureCanvasFromSource() {
       const ctx = canvas.getContext("2d");
+
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        if (!snapshotImage.complete || !snapshotImage.naturalWidth) {
+          throw new Error("Snapshot IP ainda não carregado.");
+        }
+
+        canvas.width = snapshotImage.naturalWidth;
+        canvas.height = snapshotImage.naturalHeight;
+        ctx.drawImage(snapshotImage, 0, 0, canvas.width, canvas.height);
+        return;
+      }
+
+      if (!video.videoWidth || !video.videoHeight) {
+        throw new Error("A câmera ainda não está pronta.");
+      }
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
 
-      aiResult.innerHTML = "Enviando imagem para Gemini...";
+    async function captureAndRead() {
+      ocrResult.innerHTML = "Lendo placa com OCR...";
       vehicleResult.innerHTML = "Processando...";
 
-      const base64Image = canvas.toDataURL("image/jpeg", 0.9);
+      try {
+        await captureCanvasFromSource();
 
-      const { data, error } = await supabase.functions.invoke("clever-service", {
-        body: { image: base64Image }
-      });
+        const { data: { text } } = await Tesseract.recognize(canvas, "eng");
+        const plate = extractPlate(text);
 
-      if (error) {
-        aiResult.innerHTML = `<div class="item">Erro ao chamar Gemini: ${error.message}</div>`;
-        return;
+        ocrResult.innerHTML = `
+          <b>Texto detectado:</b><br>
+          ${String(text || "").replace(/\n/g, "<br>")}<br><br>
+          <b>Placa provável:</b><br>
+          ${plate || "não identificada"}
+        `;
+
+        if (!plate) {
+          vehicleResult.innerHTML = `
+            <div class="item">
+              <b>Nenhuma placa válida encontrada</b><br>
+              Tente aproximar a câmera ou melhorar a iluminação.<br>
+              <span class="badge warning">Sem leitura</span>
+            </div>
+          `;
+
+          await addHistory("OCR sem leitura válida", "Nenhuma placa válida foi extraída da imagem.");
+          return;
+        }
+
+        await processPlate(plate);
+      } catch (err) {
+        ocrResult.innerHTML = `Erro no OCR.`;
+        vehicleResult.innerHTML = `<div class="item">Falha ao processar imagem.</div>`;
       }
-
-      const plate = normalizePlate(data?.plate || "");
-      aiResult.innerHTML = `
-        <b>Placa retornada pelo Gemini:</b><br>
-        ${plate || "não identificada"}
-      `;
-
-      if (!plate) {
-        await addHistory("Gemini sem leitura válida", "O Gemini não conseguiu identificar uma placa.");
-        vehicleResult.innerHTML = `<div class="item">Nenhuma placa válida identificada.</div>`;
-        return;
-      }
-
-      await processPlate(plate);
     }
 
     async function processPlate(plate) {
       const user = await getUser();
-      if (!user) return;
+      const organizationId = await getCurrentOrganizationId();
+      if (!user || !organizationId) return;
+
+      const normalizedPlate = normalizePlate(plate);
 
       const { data: vehicle, error } = await supabase
         .from("vehicles")
         .select("*")
-        .eq("plate", plate)
+        .eq("organization_id", organizationId)
+        .eq("plate", normalizedPlate)
         .single();
 
       if (error || !vehicle) {
         vehicleResult.innerHTML = `
           <div class="item">
             <b>Veículo não encontrado</b><br>
-            Placa: ${plate}
+            Placa: ${normalizedPlate}<br>
+            <span class="badge warning">Não localizada</span>
           </div>
         `;
-        await addHistory("Placa não encontrada via Gemini", `Placa ${plate} não encontrada.`);
+
+        await addHistory("Placa não encontrada via OCR", `Placa ${normalizedPlate} não encontrada.`);
+        await addPlateLog({
+          vehicleId: null,
+          plate: normalizedPlate,
+          accessType: "unknown",
+          result: "not_found",
+          notes: "OCR encontrou placa, mas veículo não foi localizado"
+        });
         return;
       }
 
@@ -207,8 +510,10 @@
         const { data: person } = await supabase
           .from("people")
           .select("full_name")
+          .eq("organization_id", organizationId)
           .eq("id", vehicle.person_id)
           .single();
+
         ownerName = person?.full_name || "—";
         ownerType = "Pessoa";
       }
@@ -217,28 +522,43 @@
         const { data: visitor } = await supabase
           .from("visitors")
           .select("full_name")
+          .eq("organization_id", organizationId)
           .eq("id", vehicle.visitor_id)
           .single();
+
         ownerName = visitor?.full_name || "—";
         ownerType = "Visitante";
       }
 
       const { error: accessError } = await supabase.from("access_logs").insert({
         created_by: user.id,
+        organization_id: organizationId,
         person_id: vehicle.person_id || null,
         visitor_id: vehicle.visitor_id || null,
         access_type: "entry",
         method: "plate",
-        location_name: "Gemini",
-        notes: `Acesso por Gemini da placa ${plate}`
+        location_name: "OCR",
+        notes: `Acesso por OCR da placa ${normalizedPlate}`
       });
 
       if (accessError) {
-        vehicleResult.innerHTML = `<div class="item">Erro ao registrar acesso: ${accessError.message}</div>`;
+        vehicleResult.innerHTML = `
+          <div class="item">
+            <b>Veículo encontrado, mas falhou ao registrar acesso</b><br>
+            ${accessError.message}
+          </div>
+        `;
         return;
       }
 
-      await addHistory("Acesso por Gemini", `Entrada registrada automaticamente para a placa ${plate}.`);
+      await addHistory("Acesso por OCR", `Entrada registrada automaticamente para a placa ${normalizedPlate}.`);
+      await addPlateLog({
+        vehicleId: vehicle.id,
+        plate: normalizedPlate,
+        accessType: "entry",
+        result: "matched",
+        notes: "Acesso registrado automaticamente via OCR"
+      });
 
       vehicleResult.innerHTML = `
         <div class="item">
@@ -256,11 +576,13 @@
     (async () => {
       const ok = await ensureSession();
       if (!ok) return;
-      await startCamera();
+      await loadPreferredOcrCamera();
     })();
 
-    window.captureAndSend = captureAndSend;
-    window.startCamera = startCamera;
+    window.captureAndRead = captureAndRead;
+    window.startBrowserFallbackCamera = startBrowserFallbackCamera;
+    window.refreshIpSnapshot = refreshIpSnapshot;
+    window.loadPreferredOcrCamera = loadPreferredOcrCamera;
     window.logout = logout;
   </script>
 </body>
