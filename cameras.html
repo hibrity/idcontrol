@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Câmeras</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 18px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .row > * {
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+      margin-top: 10px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 11px 12px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+      background: white;
+      color: black;
+    }
+
+    button, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      text-decoration: none;
+    }
+
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    video, img {
+      width: 100%;
+      border-radius: 10px;
+      background: #000;
+      margin-top: 10px;
+    }
+
+    #preview_video {
+      min-height: 240px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Câmeras • Idcontrol</div>
+        <div class="subtitle">Gerencie câmeras locais e câmeras IP do ambiente.</div>
+      </div>
+
+      <div class="row" style="max-width:320px; width:100%;">
+        <a class="btn ghost" href="./index.html">← Voltar</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h3>Cadastrar câmera local</h3>
+
+          <input id="browser_camera_name" placeholder="Nome da câmera" />
+
+          <select id="browser_camera_device"></select>
+
+          <select id="browser_camera_purpose">
+            <option value="portaria">Portaria</option>
+            <option value="qr">QR</option>
+            <option value="ocr">OCR</option>
+            <option value="face">Face</option>
+            <option value="monitoring">Monitoramento</option>
+          </select>
+
+          <div class="row">
+            <button class="ghost" onclick="loadBrowserCameras()">Atualizar lista</button>
+            <button class="ghost" onclick="previewBrowserCamera()">Pré-visualizar</button>
+          </div>
+
+          <button class="primary" onclick="saveBrowserCamera()">Salvar câmera local</button>
+
+          <video id="preview_video" autoplay playsinline muted></video>
+
+          <div id="browser_camera_result"></div>
+        </div>
+
+        <div class="card">
+          <h3>Cadastrar câmera IP</h3>
+
+          <input id="ip_camera_name" placeholder="Nome da câmera IP" />
+
+          <select id="ip_camera_purpose">
+            <option value="portaria">Portaria</option>
+            <option value="qr">QR</option>
+            <option value="ocr">OCR</option>
+            <option value="face">Face</option>
+            <option value="monitoring">Monitoramento</option>
+          </select>
+
+          <input id="ip_camera_stream_url" placeholder="URL de stream (opcional)" />
+          <input id="ip_camera_snapshot_url" placeholder="URL de snapshot (ex.: http://IP/snapshot.jpg)" />
+          <input id="ip_camera_username" placeholder="Usuário (opcional)" />
+          <input id="ip_camera_password" placeholder="Senha (opcional)" />
+
+          <div class="row">
+            <button class="ghost" onclick="previewIpCamera()">Pré-visualizar snapshot</button>
+          </div>
+
+          <button class="primary" onclick="saveIpCamera()">Salvar câmera IP</button>
+
+          <img id="preview_ip_image" alt="Prévia da câmera IP" />
+
+          <div id="ip_camera_result"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3>Câmeras cadastradas</h3>
+          <div id="cameras_list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let browserCameraStream = null;
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await stopPreviewStream();
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error("Erro ao buscar organization_id:", error.message);
+        return null;
+      }
+
+      return data.organization_id;
+    }
+
+    async function stopPreviewStream() {
+      if (browserCameraStream) {
+        browserCameraStream.getTracks().forEach(track => track.stop());
+        browserCameraStream = null;
+      }
+
+      const video = document.getElementById("preview_video");
+      if (video) {
+        video.srcObject = null;
+      }
+    }
+
+    async function loadBrowserCameras() {
+      const select = document.getElementById("browser_camera_device");
+      select.innerHTML = `<option value="">Carregando...</option>`;
+
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(device => device.kind === "videoinput");
+
+        select.innerHTML = "";
+
+        if (!videoInputs.length) {
+          select.innerHTML = `<option value="">Nenhuma câmera encontrada</option>`;
+          return;
+        }
+
+        videoInputs.forEach((device, index) => {
+          const label = device.label || `Câmera ${index + 1}`;
+          select.innerHTML += `<option value="${device.deviceId}">${label}</option>`;
+        });
+      } catch (error) {
+        select.innerHTML = `<option value="">Erro ao listar câmeras</option>`;
+      }
+    }
+
+    async function previewBrowserCamera() {
+      const deviceId = document.getElementById("browser_camera_device").value;
+      const result = document.getElementById("browser_camera_result");
+      const video = document.getElementById("preview_video");
+
+      if (!deviceId) {
+        result.innerHTML = `<div class="item">Selecione uma câmera.</div>`;
+        return;
+      }
+
+      await stopPreviewStream();
+
+      try {
+        browserCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: deviceId } },
+          audio: false
+        });
+
+        video.srcObject = browserCameraStream;
+        result.innerHTML = `<div class="item">Pré-visualização iniciada com sucesso.</div>`;
+      } catch (error) {
+        result.innerHTML = `<div class="item">Erro ao abrir a câmera local.</div>`;
+      }
+    }
+
+    async function saveBrowserCamera() {
+      const user = await getUser();
+      const organizationId = await getCurrentOrganizationId();
+      const result = document.getElementById("browser_camera_result");
+
+      if (!user || !organizationId) {
+        result.innerHTML = `<div class="item">Sessão inválida.</div>`;
+        return;
+      }
+
+      const name = document.getElementById("browser_camera_name").value.trim();
+      const deviceId = document.getElementById("browser_camera_device").value;
+      const purpose = document.getElementById("browser_camera_purpose").value;
+
+      if (!name || !deviceId) {
+        result.innerHTML = `<div class="item">Preencha nome e câmera.</div>`;
+        return;
+      }
+
+      const { error } = await supabase.from("cameras").insert({
+        organization_id: organizationId,
+        created_by: user.id,
+        name,
+        camera_type: "browser",
+        device_id: deviceId,
+        purpose,
+        active: true
+      });
+
+      if (error) {
+        result.innerHTML = `<div class="item">Erro ao salvar: ${error.message}</div>`;
+        return;
+      }
+
+      document.getElementById("browser_camera_name").value = "";
+      result.innerHTML = `<div class="item">Câmera local salva com sucesso.</div>`;
+      await loadCameras();
+    }
+
+    async function previewIpCamera() {
+      const snapshotUrl = document.getElementById("ip_camera_snapshot_url").value.trim();
+      const image = document.getElementById("preview_ip_image");
+      const result = document.getElementById("ip_camera_result");
+
+      if (!snapshotUrl) {
+        result.innerHTML = `<div class="item">Informe a URL de snapshot.</div>`;
+        return;
+      }
+
+      image.src = `${snapshotUrl}${snapshotUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      result.innerHTML = `<div class="item">Tentando carregar snapshot...</div>`;
+    }
+
+    async function saveIpCamera() {
+      const user = await getUser();
+      const organizationId = await getCurrentOrganizationId();
+      const result = document.getElementById("ip_camera_result");
+
+      if (!user || !organizationId) {
+        result.innerHTML = `<div class="item">Sessão inválida.</div>`;
+        return;
+      }
+
+      const name = document.getElementById("ip_camera_name").value.trim();
+      const purpose = document.getElementById("ip_camera_purpose").value;
+      const streamUrl = document.getElementById("ip_camera_stream_url").value.trim();
+      const snapshotUrl = document.getElementById("ip_camera_snapshot_url").value.trim();
+      const username = document.getElementById("ip_camera_username").value.trim();
+      const password = document.getElementById("ip_camera_password").value.trim();
+
+      if (!name) {
+        result.innerHTML = `<div class="item">Informe o nome da câmera IP.</div>`;
+        return;
+      }
+
+      if (!streamUrl && !snapshotUrl) {
+        result.innerHTML = `<div class="item">Informe pelo menos stream URL ou snapshot URL.</div>`;
+        return;
+      }
+
+      const { error } = await supabase.from("cameras").insert({
+        organization_id: organizationId,
+        created_by: user.id,
+        name,
+        camera_type: "ip",
+        stream_url: streamUrl || null,
+        snapshot_url: snapshotUrl || null,
+        username: username || null,
+        password: password || null,
+        purpose,
+        active: true
+      });
+
+      if (error) {
+        result.innerHTML = `<div class="item">Erro ao salvar: ${error.message}</div>`;
+        return;
+      }
+
+      document.getElementById("ip_camera_name").value = "";
+      document.getElementById("ip_camera_stream_url").value = "";
+      document.getElementById("ip_camera_snapshot_url").value = "";
+      document.getElementById("ip_camera_username").value = "";
+      document.getElementById("ip_camera_password").value = "";
+
+      result.innerHTML = `<div class="item">Câmera IP salva com sucesso.</div>`;
+      await loadCameras();
+    }
+
+    async function deleteCamera(id) {
+      const ok = confirm("Deseja remover esta câmera?");
+      if (!ok) return;
+
+      const { error } = await supabase.from("cameras").delete().eq("id", id);
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      await loadCameras();
+    }
+
+    async function loadCameras() {
+      const list = document.getElementById("cameras_list");
+      list.innerHTML = "";
+
+      const { data, error } = await supabase
+        .from("cameras")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        list.innerHTML = `<div class="item">Erro ao carregar câmeras.</div>`;
+        return;
+      }
+
+      if (!data || !data.length) {
+        list.innerHTML = `<div class="item">Nenhuma câmera cadastrada.</div>`;
+        return;
+      }
+
+      data.forEach(camera => {
+        list.innerHTML += `
+          <div class="item">
+            <b>${camera.name}</b><br>
+            Tipo: ${camera.camera_type}<br>
+            Finalidade: ${camera.purpose || "-"}<br>
+            Device ID: ${camera.device_id || "-"}<br>
+            Stream: ${camera.stream_url || "-"}<br>
+            Snapshot: ${camera.snapshot_url || "-"}<br>
+            Status: ${camera.active ? "Ativa" : "Inativa"}<br>
+            <div class="row" style="margin-top:10px;">
+              <button class="danger" onclick="deleteCamera('${camera.id}')">Remover</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    async function init() {
+      const ok = await ensureSession();
+      if (!ok) return;
+
+      await loadBrowserCameras();
+      await loadCameras();
+    }
+
+    init();
+
+    window.logout = logout;
+    window.loadBrowserCameras = loadBrowserCameras;
+    window.previewBrowserCamera = previewBrowserCamera;
+    window.saveBrowserCamera = saveBrowserCamera;
+    window.previewIpCamera = previewIpCamera;
+    window.saveIpCamera = saveIpCamera;
+    window.deleteCamera = deleteCamera;
+  </script>
+</body>
+</html>
