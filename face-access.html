@@ -19,32 +19,40 @@
     body{font-family:Arial;background:#0f172a;color:#fff;margin:0}
     .wrap{max-width:900px;margin:auto;padding:20px}
     .card{background:#1e293b;padding:20px;border-radius:12px;margin-bottom:16px}
-    video{width:100%;border-radius:10px;background:#000}
+    video,img{width:100%;border-radius:10px;background:#000}
     canvas{display:none}
-    button{padding:10px 12px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
+    button,a.btn{padding:10px 12px;border:none;border-radius:8px;font-weight:bold;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
     .primary{background:#22c55e;color:#000}
     .ghost{background:#334155;color:#fff}
     .item{background:#0b1220;padding:12px;border-radius:10px;margin-top:10px}
     .badge{display:inline-block;margin-top:6px;padding:4px 8px;border-radius:999px;background:#22c55e;color:#000;font-size:12px;font-weight:bold}
     .warn{background:#f59e0b;color:#000}
     .bad{background:#ef4444;color:#fff}
+    .row{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <h2>Acesso Facial</h2>
-      <button class="ghost" onclick="location.href='index.html'">← Voltar</button>
+      <div class="row">
+        <button class="ghost" onclick="location.href='index.html'">← Voltar</button>
+        <button class="ghost" onclick="loadPreferredFaceCamera()">Recarregar câmera facial</button>
+        <button class="ghost" onclick="startBrowserFallbackCamera()">Usar câmera local</button>
+      </div>
     </div>
 
     <div class="card">
       <h3>Câmera</h3>
+      <p id="camera_info" class="item">Carregando configuração de câmera...</p>
       <p id="status" class="item">Inicializando reconhecimento automático...</p>
       <video id="video" autoplay playsinline muted></video>
+      <img id="snapshot_image" alt="Snapshot câmera facial" style="display:none" />
       <canvas id="canvas"></canvas>
-      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <div class="row">
         <button class="primary" onclick="captureForAccess()">Testar manualmente</button>
         <button class="ghost" onclick="startCamera()">Reiniciar câmera</button>
+        <button class="ghost" onclick="refreshIpSnapshot()">Atualizar snapshot IP</button>
       </div>
     </div>
 
@@ -56,9 +64,11 @@
 
   <script>
     const video = document.getElementById("video");
+    const snapshotImage = document.getElementById("snapshot_image");
     const canvas = document.getElementById("canvas");
     const result = document.getElementById("result");
     const statusBox = document.getElementById("status");
+    const cameraInfo = document.getElementById("camera_info");
 
     let stream = null;
     let autoRecognitionStarted = false;
@@ -66,6 +76,7 @@
     let lastRecognition = 0;
     const COOLDOWN_MS = 5000;
     const LOOP_MS = 1000;
+    let currentCameraConfig = null;
 
     async function loadModels() {
       const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
@@ -79,6 +90,21 @@
       return data.user;
     }
 
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error("Erro ao buscar organization_id:", error.message);
+        return null;
+      }
+
+      return data.organization_id;
+    }
+
     async function ensureSession() {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
@@ -88,16 +114,136 @@
       return true;
     }
 
+    async function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+    }
+
+    async function startBrowserFallbackCamera(deviceId = null) {
+      await stopCamera();
+
+      currentCameraConfig = {
+        camera_type: "browser",
+        device_id: deviceId || null,
+        name: "Câmera local"
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "user" },
+          audio: false
+        });
+
+        snapshotImage.style.display = "none";
+        video.style.display = "block";
+        video.srcObject = stream;
+
+        cameraInfo.innerHTML = `
+          <b>${currentCameraConfig.name}</b><br>
+          Tipo: navegador<br>
+          Status: ativa
+        `;
+
+        statusBox.innerHTML = "Câmera ativa. Aguardando rosto...";
+      } catch (error) {
+        cameraInfo.innerHTML = "Erro ao acessar câmera local.";
+        statusBox.innerHTML = "Falha ao iniciar câmera.";
+      }
+    }
+
     async function startCamera() {
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        await refreshIpSnapshot();
+        statusBox.innerHTML = "Snapshot IP ativo. Aguardando rosto...";
+        return;
+      }
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: false
-      });
+      if (currentCameraConfig && currentCameraConfig.camera_type === "browser") {
+        await startBrowserFallbackCamera(currentCameraConfig.device_id || null);
+        return;
+      }
 
-      video.srcObject = stream;
-      statusBox.innerHTML = "Câmera ativa. Aguardando rosto...";
+      await startBrowserFallbackCamera();
+    }
+
+    async function loadPreferredFaceCamera() {
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) {
+        cameraInfo.innerHTML = "Organização não encontrada.";
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("cameras")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("purpose", "face")
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        cameraInfo.innerHTML = "Erro ao buscar câmera facial.";
+        return;
+      }
+
+      if (!data) {
+        cameraInfo.innerHTML = `
+          <b>Nenhuma câmera facial cadastrada</b><br>
+          O sistema vai usar câmera local como fallback.
+        `;
+        await startBrowserFallbackCamera();
+        return;
+      }
+
+      currentCameraConfig = data;
+
+      if (data.camera_type === "browser") {
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: navegador<br>
+          Finalidade: ${data.purpose || "-"}<br>
+          Device ID: ${data.device_id || "-"}
+        `;
+        await startBrowserFallbackCamera(data.device_id || null);
+        return;
+      }
+
+      if (data.camera_type === "ip") {
+        await stopCamera();
+        video.style.display = "none";
+        snapshotImage.style.display = "block";
+
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: IP<br>
+          Finalidade: ${data.purpose || "-"}<br>
+          Snapshot: ${data.snapshot_url || "-"}
+        `;
+
+        await refreshIpSnapshot();
+        return;
+      }
+
+      cameraInfo.innerHTML = "Tipo de câmera não suportado.";
+    }
+
+    async function refreshIpSnapshot() {
+      if (!currentCameraConfig || currentCameraConfig.camera_type !== "ip") return;
+
+      if (!currentCameraConfig.snapshot_url) {
+        cameraInfo.innerHTML = "A câmera IP não possui snapshot_url.";
+        return;
+      }
+
+      snapshotImage.src = `${currentCameraConfig.snapshot_url}${currentCameraConfig.snapshot_url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      snapshotImage.style.display = "block";
+      video.style.display = "none";
     }
 
     function euclideanDistance(a, b) {
@@ -116,8 +262,11 @@
     }
 
     async function saveAttempt(userId, imageBase64, bestMatch, bestDistance, recognized, notes) {
+      const organizationId = await getCurrentOrganizationId();
+
       await supabase.from("face_attempts").insert({
         created_by: userId,
+        organization_id: organizationId,
         person_id: bestMatch?.person_id || null,
         visitor_id: bestMatch?.visitor_id || null,
         image_base64: imageBase64,
@@ -128,19 +277,33 @@
     }
 
     async function captureFrameBase64() {
+      const ctx = canvas.getContext("2d");
+
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        if (!snapshotImage.complete || !snapshotImage.naturalWidth) {
+          throw new Error("Snapshot IP ainda não carregado.");
+        }
+
+        canvas.width = snapshotImage.naturalWidth;
+        canvas.height = snapshotImage.naturalHeight;
+        ctx.drawImage(snapshotImage, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.8);
+      }
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       return canvas.toDataURL("image/jpeg", 0.8);
     }
 
     async function processDetectedFace(descriptor, imageBase64) {
       const user = await getUser();
+      const organizationId = await getCurrentOrganizationId();
 
       const { data: faces, error } = await supabase
         .from("face_profiles")
         .select("id, person_id, visitor_id, descriptor, label, active")
+        .eq("organization_id", organizationId)
         .eq("active", true);
 
       if (error) {
@@ -184,7 +347,8 @@
         await supabase.from("history").insert({
           title: "Falha no acesso facial",
           description: `Nenhum rosto reconhecido. Distância: ${bestDistance.toFixed(4)}`,
-          created_by: user.id
+          created_by: user.id,
+          organization_id: organizationId
         });
 
         result.innerHTML = `
@@ -203,6 +367,7 @@
         const { data: person } = await supabase
           .from("people")
           .select("full_name")
+          .eq("organization_id", organizationId)
           .eq("id", bestMatch.person_id)
           .single();
         ownerName = person?.full_name || ownerName;
@@ -213,6 +378,7 @@
         const { data: visitor } = await supabase
           .from("visitors")
           .select("full_name")
+          .eq("organization_id", organizationId)
           .eq("id", bestMatch.visitor_id)
           .single();
         ownerName = visitor?.full_name || "Visitante reconhecido";
@@ -221,6 +387,7 @@
 
       await supabase.from("access_logs").insert({
         created_by: user.id,
+        organization_id: organizationId,
         person_id: bestMatch.person_id || null,
         visitor_id: bestMatch.visitor_id || null,
         access_type: "entry",
@@ -241,7 +408,8 @@
       await supabase.from("history").insert({
         title: "Acesso facial automático",
         description: `${ownerName} reconhecido(a) automaticamente por facial com confiança ${confidence}.`,
-        created_by: user.id
+        created_by: user.id,
+        organization_id: organizationId
       });
 
       result.innerHTML = `
@@ -257,18 +425,41 @@
       lastRecognition = Date.now();
     }
 
+    async function getDetectionFromCurrentSource() {
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        if (!snapshotImage.complete || !snapshotImage.naturalWidth) {
+          return null;
+        }
+
+        return await faceapi
+          .detectSingleFace(snapshotImage, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+      }
+
+      return await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+    }
+
     async function detectAndProcessFace() {
       if (processingFace) return;
-      if (!video.videoWidth || !video.videoHeight) return;
+
+      if (currentCameraConfig && currentCameraConfig.camera_type === "browser") {
+        if (!video.videoWidth || !video.videoHeight) return;
+      }
+
       if (Date.now() - lastRecognition < COOLDOWN_MS) return;
 
       processingFace = true;
 
       try {
-        const detection = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+          await refreshIpSnapshot();
+        }
+
+        const detection = await getDetectionFromCurrentSource();
 
         if (!detection) {
           statusBox.innerHTML = "Aguardando rosto...";
@@ -296,15 +487,18 @@
     }
 
     async function captureForAccess() {
-      if (!video.videoWidth || !video.videoHeight) {
-        result.innerHTML = "A câmera ainda não está pronta.";
-        return;
+      if (currentCameraConfig && currentCameraConfig.camera_type === "browser") {
+        if (!video.videoWidth || !video.videoHeight) {
+          result.innerHTML = "A câmera ainda não está pronta.";
+          return;
+        }
       }
 
-      const detection = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        await refreshIpSnapshot();
+      }
+
+      const detection = await getDetectionFromCurrentSource();
 
       if (!detection) {
         result.innerHTML = "Nenhum rosto detectado.";
@@ -320,12 +514,15 @@
       if (!ok) return;
 
       await loadModels();
-      await startCamera();
+      await loadPreferredFaceCamera();
       startAutoRecognition();
     })();
 
     window.captureForAccess = captureForAccess;
     window.startCamera = startCamera;
+    window.loadPreferredFaceCamera = loadPreferredFaceCamera;
+    window.refreshIpSnapshot = refreshIpSnapshot;
+    window.startBrowserFallbackCamera = startBrowserFallbackCamera;
   </script>
 </body>
 </html>
