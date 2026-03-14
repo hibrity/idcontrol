@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Eventos por Câmera</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    video, img {
+      width: 100%;
+      border-radius: 10px;
+      background: black;
+    }
+
+    button, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      color: black;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .warning {
+      background: #f59e0b;
+      color: black;
+    }
+
+    .danger-badge {
+      background: #ef4444;
+      color: white;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Eventos por Câmera</div>
+        <div class="muted">Detecção inicial de movimento, rosto, pessoa e veículo.</div>
+      </div>
+
+      <div class="row">
+        <a class="btn ghost" href="./index.html">← Voltar</a>
+        <a class="btn ghost" href="./cameras.html">Câmeras</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Fonte da câmera</h3>
+      <select id="purpose_select">
+        <option value="monitoring">Monitoramento</option>
+        <option value="portaria">Portaria</option>
+        <option value="face">Face</option>
+        <option value="ocr">OCR</option>
+        <option value="qr">QR</option>
+      </select>
+      <div class="row">
+        <button class="ghost" onclick="loadPreferredCamera()">Carregar câmera</button>
+        <button class="ghost" onclick="startBrowserFallbackCamera()">Usar câmera local</button>
+      </div>
+      <div id="camera_info" class="item">Carregando câmera...</div>
+    </div>
+
+    <div class="card">
+      <h3>Visualização</h3>
+      <div id="status" class="item">Inicializando detector...</div>
+      <video id="video" autoplay playsinline muted></video>
+      <img id="snapshot_image" alt="Snapshot câmera" style="display:none;" />
+      <canvas id="frame_canvas"></canvas>
+      <canvas id="compare_canvas"></canvas>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="primary" onclick="runManualDetection()">Detectar agora</button>
+        <button class="ghost" onclick="refreshIpSnapshot()">Atualizar snapshot</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Última detecção</h3>
+      <div id="last_detection" class="item">Nenhuma detecção ainda.</div>
+    </div>
+
+    <div class="card">
+      <h3>Eventos registrados</h3>
+      <div id="events_list" class="item">Carregando eventos...</div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const snapshotImage = document.getElementById("snapshot_image");
+    const frameCanvas = document.getElementById("frame_canvas");
+    const compareCanvas = document.getElementById("compare_canvas");
+    const cameraInfo = document.getElementById("camera_info");
+    const statusBox = document.getElementById("status");
+    const lastDetection = document.getElementById("last_detection");
+    const eventsList = document.getElementById("events_list");
+    const purposeSelect = document.getElementById("purpose_select");
+
+    let stream = null;
+    let currentCameraConfig = null;
+    let cocoModel = null;
+    let previousImageData = null;
+    let lastEventAt = {};
+    let detectLoopStarted = false;
+
+    const LOOP_MS = 2500;
+    const EVENT_COOLDOWN_MS = 10000;
+    const MOTION_THRESHOLD = 18;
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await stopCamera();
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) return null;
+      return data.organization_id;
+    }
+
+    async function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+    }
+
+    async function startBrowserFallbackCamera(deviceId = null) {
+      await stopCamera();
+
+      currentCameraConfig = {
+        camera_type: "browser",
+        device_id: deviceId || null,
+        name: "Câmera local"
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId
+            ? { deviceId: { exact: deviceId } }
+            : { facingMode: "environment" },
+          audio: false
+        });
+
+        snapshotImage.style.display = "none";
+        video.style.display = "block";
+        video.srcObject = stream;
+
+        cameraInfo.innerHTML = `
+          <b>${currentCameraConfig.name}</b><br>
+          Tipo: navegador<br>
+          Status: ativa
+        `;
+      } catch (error) {
+        cameraInfo.innerHTML = `<div class="item">Erro ao acessar câmera local.</div>`;
+      }
+    }
+
+    async function loadPreferredCamera() {
+      const organizationId = await getCurrentOrganizationId();
+      const purpose = purposeSelect.value;
+
+      if (!organizationId) {
+        cameraInfo.innerHTML = `<div class="item">Organização não encontrada.</div>`;
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("cameras")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("purpose", purpose)
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        cameraInfo.innerHTML = `<div class="item">Erro ao buscar câmera.</div>`;
+        return;
+      }
+
+      if (!data) {
+        cameraInfo.innerHTML = `
+          <b>Nenhuma câmera cadastrada para ${purpose}</b><br>
+          O sistema vai usar câmera local.
+        `;
+        await startBrowserFallbackCamera();
+        return;
+      }
+
+      currentCameraConfig = data;
+
+      if (data.camera_type === "browser") {
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: navegador<br>
+          Finalidade: ${data.purpose || "-"}<br>
+          Device ID: ${data.device_id || "-"}
+        `;
+        await startBrowserFallbackCamera(data.device_id || null);
+        return;
+      }
+
+      if (data.camera_type === "ip") {
+        await stopCamera();
+        video.style.display = "none";
+        snapshotImage.style.display = "block";
+
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: IP<br>
+          Finalidade: ${data.purpose || "-"}<br>
+          Snapshot: ${data.snapshot_url || "-"}
+        `;
+
+        await refreshIpSnapshot();
+        return;
+      }
+
+      cameraInfo.innerHTML = `<div class="item">Tipo de câmera não suportado.</div>`;
+    }
+
+    async function refreshIpSnapshot() {
+      if (!currentCameraConfig || currentCameraConfig.camera_type !== "ip") return;
+
+      if (!currentCameraConfig.snapshot_url) {
+        cameraInfo.innerHTML = `<div class="item">Câmera IP sem snapshot_url.</div>`;
+        return;
+      }
+
+      snapshotImage.src = `${currentCameraConfig.snapshot_url}${currentCameraConfig.snapshot_url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      snapshotImage.style.display = "block";
+      video.style.display = "none";
+    }
+
+    async function loadModels() {
+      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      cocoModel = await cocoSsd.load();
+    }
+
+    async function captureCurrentFrame() {
+      const ctx = frameCanvas.getContext("2d");
+
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        if (!snapshotImage.complete || !snapshotImage.naturalWidth) {
+          throw new Error("Snapshot IP ainda não carregado.");
+        }
+
+        frameCanvas.width = snapshotImage.naturalWidth;
+        frameCanvas.height = snapshotImage.naturalHeight;
+        ctx.drawImage(snapshotImage, 0, 0, frameCanvas.width, frameCanvas.height);
+        return;
+      }
+
+      if (!video.videoWidth || !video.videoHeight) {
+        throw new Error("Câmera local ainda não está pronta.");
+      }
+
+      frameCanvas.width = video.videoWidth;
+      frameCanvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+    }
+
+    function calculateMotionScore() {
+      const w = 160;
+      const h = 120;
+      const compareCtx = compareCanvas.getContext("2d");
+
+      compareCanvas.width = w;
+      compareCanvas.height = h;
+      compareCtx.drawImage(frameCanvas, 0, 0, w, h);
+
+      const current = compareCtx.getImageData(0, 0, w, h);
+
+      if (!previousImageData) {
+        previousImageData = current;
+        return 0;
+      }
+
+      let diff = 0;
+      const a = current.data;
+      const b = previousImageData.data;
+
+      for (let i = 0; i < a.length; i += 4) {
+        const currentGray = (a[i] + a[i + 1] + a[i + 2]) / 3;
+        const previousGray = (b[i] + b[i + 1] + b[i + 2]) / 3;
+        diff += Math.abs(currentGray - previousGray);
+      }
+
+      const score = diff / (a.length / 4);
+      previousImageData = current;
+      return score;
+    }
+
+    function shouldThrottle(eventType) {
+      const last = lastEventAt[eventType] || 0;
+      return Date.now() - last < EVENT_COOLDOWN_MS;
+    }
+
+    function markEvent(eventType) {
+      lastEventAt[eventType] = Date.now();
+    }
+
+    async function saveCameraEvent({ eventType, confidence = null, title, description, snapshotBase64 = null }) {
+      const user = await getUser();
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) return;
+
+      await supabase.from("camera_events").insert({
+        organization_id: organizationId,
+        camera_id: currentCameraConfig?.id || null,
+        created_by: user?.id || null,
+        event_type: eventType,
+        confidence,
+        title,
+        description,
+        snapshot_base64: snapshotBase64,
+        status: "open"
+      });
+    }
+
+    async function detectMotion(snapshotBase64) {
+      const score = calculateMotionScore();
+
+      if (score >= MOTION_THRESHOLD && !shouldThrottle("motion")) {
+        markEvent("motion");
+
+        await saveCameraEvent({
+          eventType: "motion",
+          confidence: Number(score.toFixed(2)),
+          title: "Movimento detectado",
+          description: `Movimento detectado com intensidade ${score.toFixed(2)}.`,
+          snapshotBase64
+        });
+
+        return {
+          type: "motion",
+          message: `Movimento detectado (${score.toFixed(2)})`
+        };
+      }
+
+      return null;
+    }
+
+    async function detectFace(snapshotBase64) {
+      const source = currentCameraConfig?.camera_type === "ip" ? snapshotImage : video;
+
+      const detection = await faceapi
+        .detectSingleFace(source, new faceapi.TinyFaceDetectorOptions());
+
+      if (detection && !shouldThrottle("face_detected")) {
+        markEvent("face_detected");
+
+        await saveCameraEvent({
+          eventType: "face_detected",
+          confidence: 0.95,
+          title: "Rosto detectado",
+          description: "Um rosto foi detectado na câmera.",
+          snapshotBase64
+        });
+
+        return {
+          type: "face_detected",
+          message: "Rosto detectado"
+        };
+      }
+
+      return null;
+    }
+
+    async function detectObjects(snapshotBase64) {
+      if (!cocoModel) return [];
+
+      const predictions = await cocoModel.detect(frameCanvas);
+      const detectedEvents = [];
+
+      for (const pred of predictions) {
+        if (pred.class === "person" && pred.score >= 0.60 && !shouldThrottle("person_detected")) {
+          markEvent("person_detected");
+
+          await saveCameraEvent({
+            eventType: "person_detected",
+            confidence: Number(pred.score.toFixed(4)),
+            title: "Pessoa detectada",
+            description: `Pessoa detectada com confiança ${pred.score.toFixed(2)}.`,
+            snapshotBase64
+          });
+
+          detectedEvents.push({
+            type: "person_detected",
+            message: `Pessoa detectada (${pred.score.toFixed(2)})`
+          });
+        }
+
+        if ((pred.class === "car" || pred.class === "truck" || pred.class === "bus" || pred.class === "motorcycle")
+          && pred.score >= 0.60
+          && !shouldThrottle("vehicle_detected")) {
+          markEvent("vehicle_detected");
+
+          await saveCameraEvent({
+            eventType: "vehicle_detected",
+            confidence: Number(pred.score.toFixed(4)),
+            title: "Veículo detectado",
+            description: `Veículo detectado (${pred.class}) com confiança ${pred.score.toFixed(2)}.`,
+            snapshotBase64
+          });
+
+          detectedEvents.push({
+            type: "vehicle_detected",
+            message: `Veículo detectado: ${pred.class} (${pred.score.toFixed(2)})`
+          });
+        }
+      }
+
+      return detectedEvents;
+    }
+
+    async function processDetectionCycle() {
+      try {
+        if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+          await refreshIpSnapshot();
+        }
+
+        await captureCurrentFrame();
+        const snapshotBase64 = frameCanvas.toDataURL("image/jpeg", 0.7);
+
+        const messages = [];
+
+        const motion = await detectMotion(snapshotBase64);
+        if (motion) messages.push(motion.message);
+
+        const face = await detectFace(snapshotBase64);
+        if (face) messages.push(face.message);
+
+        const objectEvents = await detectObjects(snapshotBase64);
+        objectEvents.forEach(e => messages.push(e.message));
+
+        if (messages.length) {
+          lastDetection.innerHTML = messages.map(m => `<div>${m}</div>`).join("");
+          statusBox.innerHTML = "Eventos detectados e registrados.";
+          await loadEvents();
+        } else {
+          lastDetection.innerHTML = "Nenhum evento novo detectado.";
+          statusBox.innerHTML = "Monitorando câmera...";
+        }
+      } catch (error) {
+        statusBox.innerHTML = "Erro ao processar eventos da câmera.";
+      }
+    }
+
+    async function runManualDetection() {
+      await processDetectionCycle();
+    }
+
+    function startLoop() {
+      if (detectLoopStarted) return;
+      detectLoopStarted = true;
+
+      setInterval(async () => {
+        await processDetectionCycle();
+      }, LOOP_MS);
+    }
+
+    async function loadEvents() {
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) {
+        eventsList.innerHTML = "Organização não encontrada.";
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("camera_events")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .limit(15);
+
+      if (error) {
+        eventsList.innerHTML = "Erro ao carregar eventos.";
+        return;
+      }
+
+      if (!data || !data.length) {
+        eventsList.innerHTML = "Nenhum evento registrado ainda.";
+        return;
+      }
+
+      eventsList.innerHTML = data.map(event => `
+        <div class="item">
+          <b>${event.title || "Evento"}</b><br>
+          Tipo: ${event.event_type}<br>
+          Confiança: ${event.confidence ?? "-"}<br>
+          ${event.description || "-"}<br>
+          <span class="badge ${event.status === "open" ? "warning" : ""}">${event.status || "open"}</span>
+        </div>
+      `).join("");
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+
+      statusBox.innerHTML = "Carregando modelos de IA...";
+      await loadModels();
+      await loadPreferredCamera();
+      await loadEvents();
+      statusBox.innerHTML = "Monitorando câmera...";
+      startLoop();
+    })();
+
+    window.logout = logout;
+    window.loadPreferredCamera = loadPreferredCamera;
+    window.startBrowserFallbackCamera = startBrowserFallbackCamera;
+    window.refreshIpSnapshot = refreshIpSnapshot;
+    window.runManualDetection = runManualDetection;
+  </script>
+</body>
+</html>
