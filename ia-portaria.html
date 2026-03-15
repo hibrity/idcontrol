@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idcontrol • Portaria IA</title>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    window.supabase = createClient(
+      "https://zbxrpprwjrholrycwsqa.supabase.co",
+      "sb_publishable_c4O2UN_u487qWsu4TNwG0Q_OGj3aHNM"
+    );
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html5-qrcode"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+    }
+    .wrap {
+      max-width: 1150px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .card {
+      background: #1e293b;
+      padding: 18px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1.1fr 1fr;
+    }
+    .item {
+      background: #0b1220;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+      margin-top: 10px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .row > * {
+      flex: 1;
+      min-width: 150px;
+    }
+    button, a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      text-decoration: none;
+      font-size: 15px;
+    }
+    .primary {
+      background: #22c55e;
+      color: black;
+    }
+    .ghost {
+      background: #334155;
+      color: white;
+    }
+    .danger {
+      background: #ef4444;
+      color: white;
+    }
+    .warning-btn {
+      background: #f59e0b;
+      color: black;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-top: 6px;
+      background: #22c55e;
+      color: black;
+    }
+    .warn {
+      background: #f59e0b;
+      color: black;
+    }
+    .bad {
+      background: #ef4444;
+      color: white;
+    }
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    video, img {
+      width: 100%;
+      border-radius: 10px;
+      background: #000;
+    }
+    canvas {
+      display: none;
+    }
+    .decision-box {
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+    }
+    .decision-title {
+      font-size: 30px;
+      font-weight: bold;
+    }
+    .decision-subtitle {
+      font-size: 20px;
+      margin-top: 10px;
+    }
+    .decision-extra {
+      margin-top: 10px;
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .title {
+        font-size: 24px;
+      }
+      .decision-title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="title">Portaria IA</div>
+        <div class="subtitle">Decisão automática de acesso com câmera, OCR, face, QR, agendamento e bloqueio.</div>
+      </div>
+
+      <div class="row" style="max-width:420px;width:100%;">
+        <a class="btn ghost" href="./index.html">← Sistema</a>
+        <a class="btn ghost" href="./cameras.html">Câmeras</a>
+        <button class="danger" onclick="logout()">Sair</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Câmera da portaria</h3>
+      <div id="camera_info" class="item">Carregando câmera...</div>
+      <div class="row" style="margin-top:10px;">
+        <button class="ghost" onclick="loadPreferredPortariaCamera()">Recarregar câmera</button>
+        <button class="ghost" onclick="startBrowserFallbackCamera()">Usar webcam</button>
+        <button class="ghost" onclick="refreshIpSnapshot()">Atualizar snapshot</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h3>Visualização</h3>
+          <div id="status" class="item">Inicializando modelos...</div>
+          <video id="video" autoplay playsinline muted></video>
+          <img id="snapshot_image" alt="Snapshot portaria" style="display:none;" />
+          <canvas id="frame_canvas"></canvas>
+
+          <div class="row" style="margin-top:12px;">
+            <button class="primary" onclick="runNow()">Analisar agora</button>
+            <button class="warning-btn" onclick="manualAllow()">Liberar manualmente</button>
+            <button class="danger" onclick="manualDeny()">Negar manualmente</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Detecções técnicas</h3>
+          <div id="tech_result" class="item">Nenhuma análise ainda.</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3>Decisão da IA</h3>
+          <div id="decision_result" class="item decision-box">
+            <div class="decision-title">⏳ Aguardando evento</div>
+            <div class="decision-subtitle">Portaria monitorando câmera</div>
+            <div class="decision-extra">Quando houver evento, a decisão aparece aqui.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Últimas decisões</h3>
+          <div id="decisions_list" class="item">Carregando...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const snapshotImage = document.getElementById("snapshot_image");
+    const frameCanvas = document.getElementById("frame_canvas");
+    const cameraInfo = document.getElementById("camera_info");
+    const statusBox = document.getElementById("status");
+    const techResult = document.getElementById("tech_result");
+    const decisionResult = document.getElementById("decision_result");
+    const decisionsList = document.getElementById("decisions_list");
+
+    let stream = null;
+    let currentCameraConfig = null;
+    let cocoModel = null;
+    let autoLoopStarted = false;
+    let busy = false;
+    let lastDecisionAt = 0;
+
+    const LOOP_MS = 3000;
+    const DECISION_COOLDOWN_MS = 7000;
+
+    const GATE_CONFIG = {
+      enabled: false,
+      shellyIp: "192.168.1.70",
+      endpoint: "/relay/0?turn=on"
+    };
+
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        location.href = "./index.html";
+        return false;
+      }
+      return true;
+    }
+
+    async function logout() {
+      await stopCamera();
+      await supabase.auth.signOut();
+      location.href = "./index.html";
+    }
+
+    async function getUser() {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+
+    async function getCurrentOrganizationId() {
+      const { data, error } = await supabase
+        .from("organization_users")
+        .select("organization_id")
+        .limit(1)
+        .single();
+
+      if (error) return null;
+      return data.organization_id;
+    }
+
+    async function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+    }
+
+    async function startBrowserFallbackCamera(deviceId = null) {
+      await stopCamera();
+
+      currentCameraConfig = {
+        camera_type: "browser",
+        device_id: deviceId || null,
+        name: "Câmera local"
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "environment" },
+          audio: false
+        });
+
+        snapshotImage.style.display = "none";
+        video.style.display = "block";
+        video.srcObject = stream;
+
+        cameraInfo.innerHTML = `
+          <b>${currentCameraConfig.name}</b><br>
+          Tipo: navegador<br>
+          Status: ativa
+        `;
+      } catch (error) {
+        cameraInfo.innerHTML = `<div class="item">Erro ao acessar câmera local.</div>`;
+      }
+    }
+
+    async function loadPreferredPortariaCamera() {
+      const organizationId = await getCurrentOrganizationId();
+
+      if (!organizationId) {
+        cameraInfo.innerHTML = `<div class="item">Organização não encontrada.</div>`;
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("cameras")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("purpose", "portaria")
+        .eq("active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        cameraInfo.innerHTML = `<div class="item">Erro ao buscar câmera da portaria.</div>`;
+        return;
+      }
+
+      if (!data) {
+        cameraInfo.innerHTML = `
+          <b>Nenhuma câmera portaria cadastrada</b><br>
+          Usando webcam automaticamente.
+        `;
+        await startBrowserFallbackCamera();
+        return;
+      }
+
+      currentCameraConfig = data;
+
+      if (data.camera_type === "browser") {
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: navegador<br>
+          Device ID: ${data.device_id || "-"}
+        `;
+        await startBrowserFallbackCamera(data.device_id || null);
+        return;
+      }
+
+      if (data.camera_type === "ip") {
+        await stopCamera();
+        video.style.display = "none";
+        snapshotImage.style.display = "block";
+
+        cameraInfo.innerHTML = `
+          <b>${data.name}</b><br>
+          Tipo: IP<br>
+          Snapshot: ${data.snapshot_url || "-"}
+        `;
+
+        await refreshIpSnapshot();
+      }
+    }
+
+    async function refreshIpSnapshot() {
+      if (!currentCameraConfig || currentCameraConfig.camera_type !== "ip") return;
+      if (!currentCameraConfig.snapshot_url) return;
+
+      snapshotImage.src = `${currentCameraConfig.snapshot_url}${currentCameraConfig.snapshot_url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      snapshotImage.style.display = "block";
+      video.style.display = "none";
+    }
+
+    async function loadModels() {
+      const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      cocoModel = await cocoSsd.load();
+    }
+
+    function normalizePlate(v) {
+      return (v || "")
+        .toUpperCase()
+        .replace(/\s+/g, "")
+        .replace(/[^A-Z0-9]/g, "")
+        .trim();
+    }
+
+    function extractPlate(text) {
+      const cleaned = normalizePlate(text);
+      const patterns = [
+        /[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/g,
+        /[A-Z]{3}[0-9]{4}/g
+      ];
+
+      for (const pattern of patterns) {
+        const match = cleaned.match(pattern);
+        if (match && match[0]) return match[0];
+      }
+      return null;
+    }
+
+    async function captureCurrentFrame() {
+      const ctx = frameCanvas.getContext("2d");
+
+      if (currentCameraConfig && currentCameraConfig.camera_type === "ip") {
+        if (!snapshotImage.complete || !snapshotImage.naturalWidth) {
+          throw new Error("Snapshot IP ainda não carregado.");
+        }
+        frameCanvas.width = snapshotImage.naturalWidth;
+        frameCanvas.height = snapshotImage.naturalHeight;
+        ctx.drawImage(snapshotImage, 0, 0, frameCanvas.width, frameCanvas.height);
+        return;
+      }
+
+      if (!video.videoWidth || !video.videoHeight) {
+        throw new Error("Câmera local ainda não pronta.");
+      }
+
+      frameCanvas.width = video.videoWidth;
+      frameCanvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+    }
+
+    async function detectFace() {
+      const source = currentCameraConfig?.camera_type === "ip" ? snapshotImage : video;
+
+      const detection = await faceapi
+        .detectSingleFace(source, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      return detection;
+    }
+
+    async function detectObjects() {
+      return await cocoModel.detect(frameCanvas);
+    }
+
+    async function detectQrFromFrame() {
+      try {
+        const tempId = `temp-qr-${Date.now()}`;
+        const tempDiv = document.createElement("div");
+        tempDiv.id = tempId;
+        tempDiv.style.display = "none";
+        document.body.appendChild(tempDiv);
+
+        const qr = new Html5Qrcode(tempId);
+        const dataUrl = frameCanvas.toDataURL("image/jpeg", 0.8);
+        const result = await qr.scanFile(await (await fetch(dataUrl)).blob(), true).catch(() => null);
+
+        document.body.removeChild(tempDiv);
+        return result || null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function detectPlateFromFrame() {
+      try {
+        const { data: { text } } = await Tesseract.recognize(frameCanvas, "eng");
+        return extractPlate(text);
+      } catch {
+        return null;
+      }
+    }
+
+    function euclideanDistance(a, b) {
+      let sum = 0;
+      for (let i = 0; i < a.length; i++) {
+        const diff = a[i] - b[i];
+        sum += diff * diff;
+      }
+      return Math.sqrt(sum);
+    }
+
+    async function matchFace(descriptor) {
+      const organizationId = await getCurrentOrganizationId();
+
+      const { data: faces } = await supabase
+        .from("face_profiles")
+        .select("id, person_id, visitor_id, descriptor, label, active")
+        .eq("organization_id", organizationId)
+        .eq("active", true);
+
+      if (!faces || !faces.length) return null;
+
+      let bestMatch = null;
+      let bestDistance = Infinity;
+      const currentDescriptor = Array.from(descriptor);
+
+      for (const face of faces) {
+        if (!Array.isArray(face.descriptor)) continue;
+        const distance = euclideanDistance(currentDescriptor, face.descriptor);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestMatch = face;
+        }
+      }
+
+      if (!bestMatch) return null;
+
+      let confidence = "low";
+      if (bestDistance <= 0.45) confidence = "high";
+      else if (bestDistance <= 0.60) confidence = "medium";
+
+      return {
+        ...bestMatch,
+        best_distance: bestDistance,
+        confidence
+      };
+    }
+
+    async function findVehicleByPlate(plate) {
+      const organizationId = await getCurrentOrganizationId();
+      if (!plate) return null;
+
+      const normalizedPlate = normalizePlate(plate);
+
+      const { data } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("plate", normalizedPlate)
+        .maybeSingle();
+
+      return data || null;
+    }
+
+    async function findVisitScheduleByQr(qrCode) {
+      const organizationId = await getCurrentOrganizationId();
+      if (!qrCode) return null;
+
+      const { data } = await supabase
+        .from("visit_schedules")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("qr_code", qrCode)
+        .in("status", ["scheduled", "checked_in"])
+        .maybeSingle();
+
+      return data || null;
+    }
+
+    async function findBlockByDocumentOrName({ name = null, document = null, phone = null }) {
+      const organizationId = await getCurrentOrganizationId();
+
+      let query = supabase
+        .from("visitor_blocks")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("active", true);
+
+      if (document) {
+        query = query.eq("visitor_document", document);
+      } else if (phone) {
+        query = query.eq("visitor_phone", phone);
+      } else if (name) {
+        query = query.ilike("visitor_name", name);
+      } else {
+        return null;
+      }
+
+      const { data } = await query.maybeSingle();
+      return data || null;
+    }
+
+    async function getPersonName(personId) {
+      if (!personId) return null;
+      const organizationId = await getCurrentOrganizationId();
+
+      const { data } = await supabase
+        .from("people")
+        .select("full_name")
+        .eq("organization_id", organizationId)
+        .eq("id", personId)
+        .maybeSingle();
+
+      return data?.full_name || null;
+    }
+
+    async function getVisitorName(visitorId) {
+      if (!visitorId) return null;
+      const organizationId = await getCurrentOrganizationId();
+
+      const { data } = await supabase
+        .from("visitors")
+        .select("full_name")
+        .eq("organization_id", organizationId)
+        .eq("id", visitorId)
+        .maybeSingle();
+
+      return data?.full_name || null;
+    }
+
+    async function openGate() {
+      if (!GATE_CONFIG.enabled) return false;
+
+      try {
+        const response = await fetch(`http://${GATE_CONFIG.shellyIp}${GATE_CONFIG.endpoint}`, {
+          method: "GET"
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
+
+    async function saveDecision(payload) {
+      const organizationId = await getCurrentOrganizationId();
+      const user = await getUser();
+
+      await supabase.from("portaria_ai_decisions").insert({
+        organization_id: organizationId,
+        created_by: user?.id || null,
+        camera_id: currentCameraConfig?.id || null,
+        ...payload
+      });
+    }
+
+    async function addHistory(title, description) {
+      const organizationId = await getCurrentOrganizationId();
+      const user = await getUser();
+
+      await supabase.from("history").insert({
+        title,
+        description,
+        organization_id: organizationId,
+        created_by: user?.id || null
+      });
+    }
+
+    async function registerAccess({ personId = null, visitorId = null, method, notes }) {
+      const organizationId = await getCurrentOrganizationId();
+      const user = await getUser();
+
+      await supabase.from("access_logs").insert({
+        created_by: user?.id || null,
+        organization_id: organizationId,
+        person_id: personId,
+        visitor_id: visitorId,
+        access_type: "entry",
+        method,
+        location_name: "Portaria IA",
+        notes
+      });
+    }
+
+    function renderDecision({ decision, title, subtitle, extra }) {
+      let color = "#22c55e";
+      let icon = "🟢";
+
+      if (decision === "deny") {
+        color = "#ef4444";
+        icon = "🔴";
+      }
+      if (decision === "review") {
+        color = "#f59e0b";
+        icon = "🟡";
+      }
+
+      decisionResult.innerHTML = `
+        <div class="decision-title" style="color:${color};">${icon} ${title}</div>
+        <div class="decision-subtitle">${subtitle}</div>
+        <div class="decision-extra">${extra || ""}</div>
+      `;
+    }
+
+    async function evaluatePortariaEvent() {
+      if (busy) return;
+      if (Date.now() - lastDecisionAt < DECISION_COOLDOWN_MS) return;
+
+      busy = true;
+
+      try {
+        statusBox.innerHTML = "Analisando evento atual...";
+
+        if (currentCameraConfig?.camera_type === "ip") {
+          await refreshIpSnapshot();
+        }
+
+        await captureCurrentFrame();
+
+        const snapshotBase64 = frameCanvas.toDataURL("image/jpeg", 0.7);
+        const [faceDetection, objects, qrCode, plate] = await Promise.all([
+          detectFace().catch(() => null),
+          detectObjects().catch(() => []),
+          detectQrFromFrame().catch(() => null),
+          detectPlateFromFrame().catch(() => null)
+        ]);
+
+        const personDetected = objects.some(o => o.class === "person" && o.score >= 0.60);
+        const vehiclePrediction = objects.find(o =>
+          ["car", "truck", "bus", "motorcycle"].includes(o.class) && o.score >= 0.60
+        );
+
+        const vehicleDetected = !!vehiclePrediction;
+        const faceDetected = !!faceDetection;
+
+        let faceMatch = null;
+        if (faceDetection?.descriptor) {
+          faceMatch = await matchFace(faceDetection.descriptor);
+        }
+
+        const matchedVehicle = await findVehicleByPlate(plate);
+        const matchedSchedule = await findVisitScheduleByQr(qrCode);
+
+        let matchedBlock = null;
+
+        if (matchedSchedule) {
+          matchedBlock = await findBlockByDocumentOrName({
+            name: matchedSchedule.visitor_name || null,
+            document: matchedSchedule.visitor_document || null,
+            phone: matchedSchedule.visitor_phone || null
+          });
+        }
+
+        let decision = "review";
+        let reason = "Nenhuma regra conclusiva encontrada.";
+        let confidence = 0.40;
+        let needsReview = true;
+        let matchedPersonId = null;
+        let matchedVisitorId = null;
+        let matchedVehicleId = matchedVehicle?.id || null;
+        let matchedScheduleId = matchedSchedule?.id || null;
+        let matchedBlockId = matchedBlock?.id || null;
+        let gateOpened = false;
+        let eventSource = "camera";
+
+        if (matchedBlock) {
+          decision = "deny";
+          reason = "Visitante bloqueado pelo morador.";
+          confidence = 0.99;
+          needsReview = false;
+          eventSource = qrCode ? "qr" : faceDetected ? "face" : plate ? "plate" : "camera";
+        } else if (matchedSchedule) {
+          decision = "allow";
+          reason = "Visita agendada encontrada e sem bloqueio.";
+          confidence = 0.96;
+          needsReview = false;
+          eventSource = qrCode ? "qr" : "visit_schedule";
+        } else if (faceMatch && faceMatch.confidence === "high") {
+          matchedPersonId = faceMatch.person_id || null;
+          matchedVisitorId = faceMatch.visitor_id || null;
+          decision = "allow";
+          reason = `Rosto reconhecido com confiança alta (${faceMatch.best_distance.toFixed(4)}).`;
+          confidence = 0.95;
+          needsReview = false;
+          eventSource = "face";
+        } else if (matchedVehicle) {
+          matchedPersonId = matchedVehicle.person_id || null;
+          matchedVisitorId = matchedVehicle.visitor_id || null;
+          decision = "allow";
+          reason = `Veículo reconhecido pela placa ${matchedVehicle.plate}.`;
+          confidence = 0.92;
+          needsReview = false;
+          eventSource = "plate";
+        } else if (faceMatch && faceMatch.confidence === "medium") {
+          matchedPersonId = faceMatch.person_id || null;
+          matchedVisitorId = faceMatch.visitor_id || null;
+          decision = "review";
+          reason = `Reconhecimento facial médio (${faceMatch.best_distance.toFixed(4)}).`;
+          confidence = 0.65;
+          needsReview = true;
+          eventSource = "face";
+        } else if (qrCode) {
+          decision = "review";
+          reason = "QR detectado, mas sem agendamento válido correspondente.";
+          confidence = 0.50;
+          needsReview = true;
+          eventSource = "qr";
+        } else if (plate) {
+          decision = "review";
+          reason = `Placa ${plate} lida, mas sem veículo autorizado.`;
+          confidence = 0.50;
+          needsReview = true;
+          eventSource = "plate";
+        } else if (faceDetected || vehicleDetected || personDetected) {
+          decision = "review";
+          reason = "Evento detectado, mas sem correspondência confiável.";
+          confidence = 0.45;
+          needsReview = true;
+          eventSource = faceDetected ? "face" : vehicleDetected ? "vehicle" : "person";
+        }
+
+        if (decision === "allow") {
+          gateOpened = await openGate();
+
+          await registerAccess({
+            personId: matchedPersonId,
+            visitorId: matchedVisitorId,
+            method: eventSource,
+            notes: `Portaria IA: ${reason}`
+          });
+
+          await addHistory("Portaria IA liberou acesso", reason);
+        }
+
+        if (decision === "deny") {
+          await addHistory("Portaria IA negou acesso", reason);
+        }
+
+        if (decision === "review") {
+          await addHistory("Portaria IA pediu revisão", reason);
+        }
+
+        await saveDecision({
+          event_source: eventSource,
+          detected_plate: plate || null,
+          detected_qr: qrCode || null,
+          detected_face: faceDetected,
+          detected_vehicle: vehicleDetected,
+          detected_person: personDetected,
+          matched_person_id: matchedPersonId,
+          matched_visitor_id: matchedVisitorId,
+          matched_vehicle_id: matchedVehicleId,
+          matched_schedule_id: matchedScheduleId,
+          matched_block_id: matchedBlockId,
+          decision,
+          confidence,
+          reason,
+          needs_review: needsReview,
+          gate_opened: gateOpened,
+          snapshot_base64: snapshotBase64
+        });
+
+        const matchedName =
+          matchedPersonId ? await getPersonName(matchedPersonId) :
+          matchedVisitorId ? await getVisitorName(matchedVisitorId) :
+          null;
+
+        techResult.innerHTML = `
+          <b>Face detectada:</b> ${faceDetected ? "sim" : "não"}<br>
+          <b>Pessoa detectada:</b> ${personDetected ? "sim" : "não"}<br>
+          <b>Veículo detectado:</b> ${vehicleDetected ? "sim" : "não"}<br>
+          <b>QR:</b> ${qrCode || "-"}<br>
+          <b>Placa:</b> ${plate || "-"}<br>
+          <b>Match facial:</b> ${faceMatch ? `${faceMatch.confidence} (${faceMatch.best_distance.toFixed(4)})` : "-"}<br>
+          <b>Veículo autorizado:</b> ${matchedVehicle ? matchedVehicle.plate : "-"}<br>
+          <b>Visita agendada:</b> ${matchedSchedule ? matchedSchedule.visitor_name : "-"}<br>
+          <b>Bloqueio ativo:</b> ${matchedBlock ? matchedBlock.visitor_name : "-"}
+        `;
+
+        renderDecision({
+          decision,
+          title: decision === "allow" ? "LIBERAR" : decision === "deny" ? "NEGAR" : "REVISAR",
+          subtitle: matchedName || matchedSchedule?.visitor_name || plate || qrCode || "Evento detectado",
+          extra: `${reason}${decision === "allow" ? (gateOpened ? " | Portão acionado." : " | Portão não acionado.") : ""}`
+        });
+
+        statusBox.innerHTML = "Portaria IA pronta para próximo evento.";
+        lastDecisionAt = Date.now();
+        await loadDecisions();
+      } catch (error) {
+        statusBox.innerHTML = "Erro ao avaliar evento da portaria.";
+      } finally {
+        busy = false;
+      }
+    }
+
+    async function manualAllow() {
+      renderDecision({
+        decision: "allow",
+        title: "LIBERADO MANUALMENTE",
+        subtitle: "Confirmação do operador",
+        extra: "A decisão manual não substitui a análise automática, mas serve como override operacional."
+      });
+    }
+
+    async function manualDeny() {
+      renderDecision({
+        decision: "deny",
+        title: "NEGADO MANUALMENTE",
+        subtitle: "Confirmação do operador",
+        extra: "Bloqueio manual aplicado pelo operador."
+      });
+    }
+
+    async function loadDecisions() {
+      const organizationId = await getCurrentOrganizationId();
+
+      const { data, error } = await supabase
+        .from("portaria_ai_decisions")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error) {
+        decisionsList.innerHTML = "Erro ao carregar decisões.";
+        return;
+      }
+
+      if (!data || !data.length) {
+        decisionsList.innerHTML = "Nenhuma decisão registrada ainda.";
+        return;
+      }
+
+      decisionsList.innerHTML = data.map(d => `
+        <div class="item">
+          <b>${d.decision.toUpperCase()}</b><br>
+          Origem: ${d.event_source || "-"}<br>
+          Placa: ${d.detected_plate || "-"}<br>
+          QR: ${d.detected_qr || "-"}<br>
+          Confiança: ${d.confidence ?? "-"}<br>
+          ${d.reason || "-"}<br>
+          <span class="badge ${d.decision === "deny" ? "bad" : d.decision === "review" ? "warn" : ""}">
+            ${d.decision}
+          </span>
+        </div>
+      `).join("");
+    }
+
+    async function runNow() {
+      await evaluatePortariaEvent();
+    }
+
+    function startLoop() {
+      if (autoLoopStarted) return;
+      autoLoopStarted = true;
+
+      setInterval(async () => {
+        await evaluatePortariaEvent();
+      }, LOOP_MS);
+    }
+
+    (async () => {
+      const ok = await ensureSession();
+      if (!ok) return;
+
+      statusBox.innerHTML = "Carregando modelos...";
+      await loadModels();
+      await loadPreferredPortariaCamera();
+      await loadDecisions();
+      statusBox.innerHTML = "Portaria IA monitorando...";
+      startLoop();
+    })();
+
+    window.logout = logout;
+    window.loadPreferredPortariaCamera = loadPreferredPortariaCamera;
+    window.startBrowserFallbackCamera = startBrowserFallbackCamera;
+    window.refreshIpSnapshot = refreshIpSnapshot;
+    window.runNow = runNow;
+    window.manualAllow = manualAllow;
+    window.manualDeny = manualDeny;
+  </script>
+</body>
+</html>
